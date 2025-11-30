@@ -79,6 +79,180 @@ Expected response:
 }
 ```
 
+## Deployment
+
+### Local Development (Quick Start)
+
+```bash
+# 1. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Run development server
+uvicorn app.main:app --reload
+
+# 4. Access the API
+# Swagger UI: http://127.0.0.1:8000/docs
+# Health check: http://127.0.0.1:8000/health
+```
+
+### Production Deployment (Railway)
+
+#### Prerequisites
+- GitHub repository with this codebase
+- [Railway account](https://railway.app/) (free tier works)
+- Python 3.11+ for local development
+
+#### Step 1: Prepare Repository
+
+Ensure your repo contains:
+- ✅ `Procfile` (defines web process)
+- ✅ `requirements.txt` (Python dependencies)
+- ✅ `runtime.txt` (Python version: 3.11.7)
+- ✅ `.env.example` (template for environment variables)
+
+#### Step 2: Deploy to Railway
+
+1. **Push code to GitHub**
+   ```bash
+   git add .
+   git commit -m "Prepare for Railway deployment"
+   git push origin main
+   ```
+
+2. **Create Railway project**
+   - Log in to [Railway](https://railway.app/)
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Select your `lover's-compass-backend` repository
+   - Railway auto-detects Python via `runtime.txt` and `requirements.txt`
+
+3. **Configure environment variables** (Railway dashboard → Variables tab)
+
+   **Required:**
+   ```
+   ENV=production
+   ```
+
+   **Optional (for PostgreSQL):**
+   ```
+   DATABASE_URL=postgresql://user:pass@host:5432/dbname
+   ```
+
+   *Note: If `DATABASE_URL` is not set, the app uses SQLite (stored on Railway's ephemeral filesystem, acceptable for 2-person use cases). For persistence, add Railway Postgres plugin.*
+
+   **Optional (CORS for iOS app):**
+   ```
+   ALLOWED_ORIGINS=["https://your-ios-app-domain.com"]
+   ```
+
+4. **Deploy**
+   - Railway automatically builds and deploys on every push to `main`
+   - First deployment takes ~2-3 minutes
+   - Railway provides a public URL: `https://your-app.up.railway.app`
+
+#### Step 3: Verify Deployment
+
+1. **Health check**
+   ```bash
+   curl https://your-app.up.railway.app/health
+   # Expected: {"status":"ok"}
+   ```
+
+2. **API documentation**
+   - Visit `https://your-app.up.railway.app/docs`
+   - Interactive OpenAPI (Swagger) UI should load
+
+3. **Test pairing endpoint**
+   ```bash
+   curl -X POST https://your-app.up.railway.app/pair \
+     -H "Content-Type: application/json" \
+     -d '{"action":"create","device_id":"test-001"}'
+   # Expected: {"couple_id":"XXXXXXXX","device_id":"test-001","role":"creator",...}
+   ```
+
+#### Production Features
+
+✅ **Security**
+- HTTPS enabled automatically by Railway
+- OWASP security headers active (X-Frame-Options, X-Content-Type-Options, etc.)
+- HSTS enforced in production (app/main.py:144)
+
+✅ **Rate Limiting**
+- IP-based: 5 req/min on `/pair`, 60 req/min on `/updateLocation`, 120 req/min on `/partnerLocation`
+- Device-based: 6 req/min on `/updateLocation`, 12 req/min on `/partnerLocation`
+- 429 responses when limits exceeded
+
+✅ **Privacy**
+- No location history stored (only latest point)
+- Coordinates never appear in logs
+- `is_sharing=false` stops coordinate disclosure
+
+#### Database Options
+
+**Option 1: SQLite (Default - No setup required)**
+- Suitable for: 2-person couples app, development, prototyping
+- Limitations: Ephemeral storage (data lost on Railway restart)
+- Cost: Free
+
+**Option 2: PostgreSQL (Recommended for production)**
+1. Add Railway Postgres plugin to your project
+2. Railway auto-creates `DATABASE_URL` environment variable
+3. App automatically switches to PostgreSQL (no code changes)
+4. Persistent storage across deployments
+
+#### Future: Database Migrations
+
+When you need schema changes with PostgreSQL:
+1. Install Alembic: `pip install alembic`
+2. Initialize migrations: `alembic init alembic`
+3. Generate migration: `alembic revision --autogenerate -m "description"`
+4. Apply migration: `alembic upgrade head`
+
+*For now, the app uses `Base.metadata.create_all()` which works for initial deployment.*
+
+#### Monitoring & Logs
+
+**View logs in Railway:**
+- Railway dashboard → Deployments tab → Click active deployment
+- Real-time logs show requests, errors, rate limiting events
+
+**Key log patterns to monitor:**
+- `Pairing code created:` - New couple registrations
+- `Location updated successfully:` - Location sync activity
+- `Rate limit exceeded:` - Potential abuse attempts
+
+#### Troubleshooting
+
+**Build fails:**
+- Verify `runtime.txt` matches installed Python version
+- Check `requirements.txt` for typos or version conflicts
+
+**App crashes:**
+- Check Railway logs for startup errors
+- Verify `ENV=production` is set
+- Ensure `PORT` environment variable is available (Railway provides this automatically)
+
+**Database connection issues:**
+- SQLite: Check file permissions (should auto-create)
+- PostgreSQL: Verify `DATABASE_URL` format and credentials
+
+#### Cost Estimate
+
+**Railway Free Tier:**
+- $5 credit/month (no credit card required)
+- Sufficient for ~500 hours/month of low-traffic apps
+- Sleep after inactivity (wakes on request)
+
+**Hobby Plan ($5/month):**
+- No sleep
+- Custom domains
+- Priority support
+
+*For a 2-person couples app, free tier is typically sufficient.*
+
 ## Project Structure
 
 ```
@@ -181,15 +355,17 @@ All user input is validated before processing:
 - **No Analytics**: No user behavior tracking or analytics data collection.
 - **No Third Parties**: No data sharing with external services or third parties.
 
-## Next Steps
+## Development Roadmap
 
-The following features will be implemented in subsequent phases:
+The following phases have been completed:
 
 1. ~~Device pairing endpoints (`/pair`)~~ ✅ Completed (Phase 3)
 2. ~~Location update endpoint (`/updateLocation`)~~ ✅ Completed (Phase 2)
 3. ~~Partner location retrieval (`/partnerLocation`)~~ ✅ Completed (Phase 2)
 4. ~~Rate limiting and security enhancements~~ ✅ Completed (Phase 4)
-5. Production deployment configuration (Phase 5)
+5. ~~Production deployment configuration~~ ✅ Completed (Phase 5)
+
+**Status**: Production-ready backend with Railway deployment support
 
 ## License
 
