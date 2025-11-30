@@ -28,14 +28,25 @@ connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-# Create SQLAlchemy engine
+# Create SQLAlchemy engine with production-ready connection pooling
 # echo=True in development for SQL query logging (disable in production)
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    echo=settings.is_development,  # Log SQL queries in development
-    pool_pre_ping=True,  # Verify connections before using them
-)
+engine_config = {
+    "connect_args": connect_args,
+    "echo": settings.is_development,  # Log SQL queries in development
+    "pool_pre_ping": True,  # Verify connections before using them
+}
+
+# Add connection pool configuration for non-SQLite databases
+# SQLite uses in-memory pooling automatically
+if not settings.DATABASE_URL.startswith("sqlite"):
+    engine_config.update({
+        "pool_size": 10,           # Base connection pool size
+        "max_overflow": 20,        # Additional connections under load
+        "pool_timeout": 30,        # Wait 30s for connection
+        "pool_recycle": 3600,      # Recycle connections after 1 hour
+    })
+
+engine = create_engine(settings.DATABASE_URL, **engine_config)
 
 # Create session factory
 # autocommit=False: Require explicit session.commit()

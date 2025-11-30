@@ -7,7 +7,7 @@ Note: This file contains only the model definitions. CRUD operations
 and business logic will be added in separate modules in future phases.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, DateTime, Boolean, Index
 
 from app.database import Base
@@ -74,10 +74,11 @@ class DeviceLocation(Base):
     )
 
     # Timestamp of last update (UTC)
+    # Using timezone-aware datetime instead of deprecated utcnow()
     updated_at = Column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
         comment="Last location update timestamp (UTC)"
     )

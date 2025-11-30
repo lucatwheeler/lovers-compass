@@ -113,6 +113,39 @@ from slowapi.middleware import SlowAPIASGIMiddleware
 app.add_middleware(SlowAPIASGIMiddleware)
 
 
+# ============================================================================
+# Security Headers Middleware
+# ============================================================================
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security headers to all responses.
+
+    Security headers protect against common web vulnerabilities:
+    - X-Content-Type-Options: Prevents MIME sniffing attacks
+    - X-Frame-Options: Prevents clickjacking attacks
+    - X-XSS-Protection: Enables browser XSS filtering
+    - Strict-Transport-Security: Enforces HTTPS in production
+    """
+    response = await call_next(request)
+
+    # Prevent MIME sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Enable XSS filter (legacy browsers)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Enforce HTTPS in production
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    return response
+
+
 # Rate limit exception handler
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
