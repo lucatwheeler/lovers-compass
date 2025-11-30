@@ -4,26 +4,29 @@ Lover's Compass - FastAPI Application
 Main application entry point with FastAPI configuration, middleware,
 and route definitions.
 
-This initial version provides:
+Features:
 - Health check endpoint
+- Location update endpoint (POST /updateLocation)
+- Partner location retrieval (GET /partnerLocation)
 - CORS middleware for iOS app
 - Database initialization on startup
 - Centralized logging configuration
-
-Location-based endpoints will be added in future phases.
 """
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import get_settings, Settings
 from app.database import get_db, init_db
 from app.logging_config import setup_logging
+from app import crud, models, schemas
 
 # Initialize logging first
 setup_logging()
@@ -68,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Lover's Compass API",
     description="A minimal, private location-sharing API for couples",
-    version="0.1.0",
+    version="0.2.0",  # Updated version for Phase 2
     lifespan=lifespan,
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc
@@ -89,7 +92,7 @@ app.add_middleware(
 
 
 # ============================================================================
-# Routes
+# Health & Info Routes
 # ============================================================================
 
 @app.get("/health")
@@ -118,46 +121,176 @@ async def root():
     """
     return {
         "name": "Lover's Compass API",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "endpoints": {
+            "updateLocation": "POST /updateLocation",
+            "partnerLocation": "GET /partnerLocation"
+        }
     }
 
 
 # ============================================================================
-# Dependency Injection Examples
+# Location Routes
 # ============================================================================
-# The following commented examples show how to use dependency injection
-# for database sessions and settings in future endpoints:
-#
-# Example 1: Using database session
-# @app.get("/example-db")
-# async def example_with_db(db: Session = Depends(get_db)):
-#     """Example endpoint using database session."""
-#     # Use db.query(...) here
-#     pass
-#
-# Example 2: Using settings
-# @app.get("/example-config")
-# async def example_with_config(settings: Settings = Depends(get_settings)):
-#     """Example endpoint using application settings."""
-#     # Access settings.ENV, settings.DATABASE_URL, etc.
-#     pass
-#
-# Example 3: Using both
-# @app.post("/example-combined")
-# async def example_combined(
-#     db: Session = Depends(get_db),
-#     settings: Settings = Depends(get_settings)
-# ):
-#     """Example endpoint using both database and settings."""
-#     pass
+
+@app.post("/updateLocation", response_model=schemas.LocationUpdateResponse)
+def update_location(
+    payload: schemas.LocationUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Update or create a device's location.
+
+    This endpoint implements an "upsert" pattern: if a location record
+    already exists for the given couple_id:device_id combination, it
+    updates the existing record. Otherwise, it creates a new record.
+
+    Privacy Note: Only the most recent location is stored per device.
+    No historical location data is retained.
+
+    Args:
+        payload: Location update request with couple_id, device_id, coordinates, and sharing status
+        db: Database session (injected via dependency)
+
+    Returns:
+        LocationUpdateResponse: Success status and timestamp of update
+
+    Raises:
+        HTTPException: 500 if database operation fails
+    """
+    try:
+        # Upsert the device location
+        device = crud.upsert_device_location(db, payload)
+
+        logger.info(
+            f"Location updated successfully for couple_id={payload.couple_id}, "
+            f"device_id={payload.device_id}"
+        )
+
+        return schemas.LocationUpdateResponse(
+            success=True,
+            updated_at=device.updated_at,
+        )
+
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Database error during location update for couple_id={payload.couple_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update location due to database error"
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during location update for couple_id={payload.couple_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred"
+        )
+
+
+@app.get("/partnerLocation", response_model=schemas.PartnerLocationResponse)
+def partner_location(
+    couple_id: str,
+    device_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve the partner's latest location.
+
+    This endpoint returns the location of the OTHER device in the couple
+    (i.e., not the caller's device).
+
+    Three scenarios are handled:
+    1. No partner exists yet (partner_found=False)
+    2. Partner exists but not sharing location (is_sharing=False, no coordinates)
+    3. Partner exists and sharing (is_sharing=True, with coordinates and staleness)
+
+    Privacy Note: Coordinates are only returned if the partner is actively sharing.
+
+    Args:
+        couple_id: Unique identifier for the couple
+        device_id: Device ID of the requester (to exclude from results)
+        db: Database session (injected via dependency)
+
+    Returns:
+        PartnerLocationResponse: Partner's location status and coordinates (if sharing)
+
+    Raises:
+        HTTPException: 500 if database operation fails
+    """
+    try:
+        # Retrieve partner's location
+        partner = crud.get_partner_location(db, couple_id, device_id)
+
+        # Case 1: No partner found
+        if partner is None:
+            logger.debug(
+                f"No partner found for couple_id={couple_id}, device_id={device_id}"
+            )
+            return schemas.PartnerLocationResponse(partner_found=False)
+
+        # Calculate staleness (time since last update)
+        now = datetime.now(timezone.utc)
+
+        # Handle timezone-aware vs naive datetime
+        if partner.updated_at.tzinfo is None:
+            # If stored datetime is naive, assume UTC
+            partner_updated_at = partner.updated_at.replace(tzinfo=timezone.utc)
+        else:
+            partner_updated_at = partner.updated_at
+
+        staleness_seconds = int((now - partner_updated_at).total_seconds())
+
+        # Case 2: Partner not sharing location
+        if not partner.is_sharing:
+            logger.debug(
+                f"Partner not sharing for couple_id={couple_id}, device_id={device_id}"
+            )
+            return schemas.PartnerLocationResponse(
+                partner_found=True,
+                is_sharing=False,
+                staleness_seconds=staleness_seconds,
+            )
+
+        # Case 3: Partner sharing location
+        logger.debug(
+            f"Partner location retrieved for couple_id={couple_id}, device_id={device_id}"
+        )
+        return schemas.PartnerLocationResponse(
+            partner_found=True,
+            is_sharing=True,
+            latitude=partner.latitude,
+            longitude=partner.longitude,
+            updated_at=partner_updated_at,
+            staleness_seconds=staleness_seconds,
+        )
+
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Database error during partner location retrieval for couple_id={couple_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve partner location due to database error"
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during partner location retrieval for couple_id={couple_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred"
+        )
 
 
 # ============================================================================
-# Future Endpoints (To be implemented in next phase)
+# Future Endpoints (To be implemented in later phases)
 # ============================================================================
-# POST /pair - Generate or validate pairing codes
-# POST /updateLocation - Update device location
-# GET /partnerLocation - Retrieve partner's location
+# POST /pair - Generate or validate pairing codes (Phase 3)
+# Rate limiting middleware (Phase 4)
+# Deployment configuration (Phase 5)
