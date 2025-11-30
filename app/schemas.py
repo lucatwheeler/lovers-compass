@@ -8,6 +8,7 @@ and serializes outgoing responses.
 
 from datetime import datetime
 from typing import Optional, Literal
+import re
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -55,11 +56,17 @@ class LocationUpdateRequest(BaseModel):
     @field_validator('latitude', 'longitude')
     @classmethod
     def validate_coordinates(cls, v: float) -> float:
-        """Ensure coordinates are valid numbers (not NaN or infinity)."""
+        """
+        Ensure coordinates are valid numbers (not NaN or infinity).
+
+        Phase 4 Enhancement: Added infinity check for security hardening.
+        """
         if not isinstance(v, (int, float)):
             raise ValueError('Coordinate must be a number')
         if v != v:  # Check for NaN
             raise ValueError('Coordinate cannot be NaN')
+        if not (-float('inf') < v < float('inf')):  # Check for infinity
+            raise ValueError('Coordinate cannot be infinity')
         return float(v)
 
     model_config = {
@@ -205,6 +212,47 @@ class PairingRequest(BaseModel):
         max_length=8,
         description="Pairing code (required for 'join' action, ignored for 'create')"
     )
+
+    @field_validator('couple_id')
+    @classmethod
+    def validate_couple_id(cls, v: Optional[str]) -> Optional[str]:
+        """
+        Validate pairing code format for security.
+
+        Phase 4 Enhancement: Enforce uppercase alphanumeric format.
+        Pairing codes must be:
+        - 8 characters long
+        - Uppercase letters A-Z (excluding O, I)
+        - Digits 2-9 (excluding 0, 1)
+
+        Returns None if not provided (for 'create' action).
+        Raises ValueError if format is invalid (for 'join' action).
+        """
+        if v is None:
+            return v
+
+        # Must be exactly 8 characters
+        if len(v) != 8:
+            raise ValueError('Pairing code must be exactly 8 characters')
+
+        # Must be uppercase alphanumeric
+        if not v.isupper():
+            raise ValueError('Pairing code must be uppercase')
+
+        if not v.isalnum():
+            raise ValueError('Pairing code must be alphanumeric')
+
+        # Check for valid characters (A-Z excluding O,I and digits 2-9 excluding 0,1)
+        # This matches the generation pattern from crud.py
+        allowed_chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        for char in v:
+            if char not in allowed_chars:
+                raise ValueError(
+                    f'Invalid character in pairing code: {char}. '
+                    'Pairing codes only use A-Z (excluding O, I) and 2-9 (excluding 0, 1)'
+                )
+
+        return v
 
     model_config = {
         "json_schema_extra": {

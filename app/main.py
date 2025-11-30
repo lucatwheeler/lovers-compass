@@ -18,15 +18,30 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings, Settings
 from app.database import get_db, init_db
 from app.logging_config import setup_logging
 from app import crud, models, schemas
+from app.rate_limit import (
+    limiter,
+    device_limiter_body,
+    device_limiter_query,
+    PAIR_RATE_LIMIT,
+    UPDATE_LOCATION_DEVICE_LIMIT,
+    UPDATE_LOCATION_IP_LIMIT,
+    PARTNER_LOCATION_DEVICE_LIMIT,
+    PARTNER_LOCATION_IP_LIMIT,
+    log_rate_limit_exceeded,
+)
 
 # Initialize logging first
 setup_logging()
@@ -71,7 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Lover's Compass API",
     description="A minimal, private location-sharing API for couples",
-    version="0.3.0",  # Updated version for Phase 3 (Pairing)
+    version="0.4.0",  # Updated version for Phase 4 (Rate Limiting & Security)
     lifespan=lifespan,
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc
@@ -89,6 +104,38 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
 )
+
+# Register rate limiter with FastAPI
+app.state.limiter = limiter
+
+# Add SlowAPI middleware
+from slowapi.middleware import SlowAPIASGIMiddleware
+app.add_middleware(SlowAPIASGIMiddleware)
+
+
+# Rate limit exception handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """
+    Handle rate limit exceeded errors.
+
+    Returns a 429 Too Many Requests response when a client exceeds
+    the configured rate limits.
+
+    Args:
+        request: FastAPI request object
+        exc: Rate limit exception
+
+    Returns:
+        JSONResponse: 429 error with retry information
+    """
+    # Log rate limit event (privacy-conscious: only IP, not request body)
+    log_rate_limit_exceeded(request, request.url.path)
+
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": "Rate limit exceeded. Please try again later."}
+    )
 
 
 # ============================================================================
@@ -129,6 +176,11 @@ async def root():
             "pair": "POST /pair",
             "updateLocation": "POST /updateLocation",
             "partnerLocation": "GET /partnerLocation"
+        },
+        "rate_limiting": {
+            "pair": "5 requests/minute per IP",
+            "updateLocation": "6 requests/minute per device, 60/minute per IP",
+            "partnerLocation": "12 requests/minute per device, 120/minute per IP"
         }
     }
 
@@ -137,11 +189,13 @@ async def root():
 # Pairing Routes
 # ============================================================================
 
-@app.post("/pair", response_model=schemas.PairingResponse)
+@app.post("/pair", responses={200: {"model": schemas.PairingResponse}})
+@limiter.limit(PAIR_RATE_LIMIT)
 def pair(
+    request: Request,
     payload: schemas.PairingRequest,
     db: Session = Depends(get_db),
-):
+) -> JSONResponse:
     """
     Create or join a couple via pairing code.
 
@@ -182,12 +236,13 @@ def pair(
                 f"Pairing code created: couple_id={couple_id}, device_id={payload.device_id}"
             )
 
-            return schemas.PairingResponse(
+            response_data = schemas.PairingResponse(
                 couple_id=couple_id,
                 device_id=payload.device_id,
                 role="creator",
                 existing_devices=None,
             )
+            return JSONResponse(content=response_data.model_dump(mode='json'))
 
         # ====================================================================
         # JOIN ACTION: Join an existing couple
@@ -232,12 +287,13 @@ def pair(
                 f"device_id={payload.device_id}, existing_devices={device_count}"
             )
 
-            return schemas.PairingResponse(
+            response_data = schemas.PairingResponse(
                 couple_id=payload.couple_id,
                 device_id=payload.device_id,
                 role="partner",
                 existing_devices=device_count,
             )
+            return JSONResponse(content=response_data.model_dump(mode='json'))
 
         # ====================================================================
         # INVALID ACTION
@@ -278,11 +334,14 @@ def pair(
 # Location Routes
 # ============================================================================
 
-@app.post("/updateLocation", response_model=schemas.LocationUpdateResponse)
+@app.post("/updateLocation", responses={200: {"model": schemas.LocationUpdateResponse}})
+@device_limiter_body.limit(UPDATE_LOCATION_DEVICE_LIMIT)
+@limiter.limit(UPDATE_LOCATION_IP_LIMIT)
 def update_location(
+    request: Request,
     payload: schemas.LocationUpdateRequest,
     db: Session = Depends(get_db),
-):
+) -> JSONResponse:
     """
     Update or create a device's location.
 
@@ -312,10 +371,11 @@ def update_location(
             f"device_id={payload.device_id}"
         )
 
-        return schemas.LocationUpdateResponse(
+        response_data = schemas.LocationUpdateResponse(
             success=True,
             updated_at=device.updated_at,
         )
+        return JSONResponse(content=response_data.model_dump(mode='json'))
 
     except SQLAlchemyError as e:
         logger.error(
@@ -335,12 +395,15 @@ def update_location(
         )
 
 
-@app.get("/partnerLocation", response_model=schemas.PartnerLocationResponse)
+@app.get("/partnerLocation", responses={200: {"model": schemas.PartnerLocationResponse}})
+@device_limiter_query.limit(PARTNER_LOCATION_DEVICE_LIMIT)
+@limiter.limit(PARTNER_LOCATION_IP_LIMIT)
 def partner_location(
+    request: Request,
     couple_id: str,
     device_id: str,
     db: Session = Depends(get_db),
-):
+) -> JSONResponse:
     """
     Retrieve the partner's latest location.
 
@@ -374,7 +437,8 @@ def partner_location(
             logger.debug(
                 f"No partner found for couple_id={couple_id}, device_id={device_id}"
             )
-            return schemas.PartnerLocationResponse(partner_found=False)
+            response_data = schemas.PartnerLocationResponse(partner_found=False)
+            return JSONResponse(content=response_data.model_dump(mode='json'))
 
         # Calculate staleness (time since last update)
         now = datetime.now(timezone.utc)
@@ -393,17 +457,18 @@ def partner_location(
             logger.debug(
                 f"Partner not sharing for couple_id={couple_id}, device_id={device_id}"
             )
-            return schemas.PartnerLocationResponse(
+            response_data = schemas.PartnerLocationResponse(
                 partner_found=True,
                 is_sharing=False,
                 staleness_seconds=staleness_seconds,
             )
+            return JSONResponse(content=response_data.model_dump(mode='json'))
 
         # Case 3: Partner sharing location
         logger.debug(
             f"Partner location retrieved for couple_id={couple_id}, device_id={device_id}"
         )
-        return schemas.PartnerLocationResponse(
+        response_data = schemas.PartnerLocationResponse(
             partner_found=True,
             is_sharing=True,
             latitude=partner.latitude,
@@ -411,6 +476,7 @@ def partner_location(
             updated_at=partner_updated_at,
             staleness_seconds=staleness_seconds,
         )
+        return JSONResponse(content=response_data.model_dump(mode='json'))
 
     except SQLAlchemyError as e:
         logger.error(
@@ -433,5 +499,4 @@ def partner_location(
 # ============================================================================
 # Future Endpoints (To be implemented in later phases)
 # ============================================================================
-# Rate limiting middleware (Phase 4)
 # Deployment configuration (Phase 5)
