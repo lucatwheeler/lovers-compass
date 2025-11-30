@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Lover's Compass API",
     description="A minimal, private location-sharing API for couples",
-    version="0.2.0",  # Updated version for Phase 2
+    version="0.3.0",  # Updated version for Phase 3 (Pairing)
     lifespan=lifespan,
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc
@@ -121,15 +121,157 @@ async def root():
     """
     return {
         "name": "Lover's Compass API",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "status": "running",
         "docs": "/docs",
         "health": "/health",
         "endpoints": {
+            "pair": "POST /pair",
             "updateLocation": "POST /updateLocation",
             "partnerLocation": "GET /partnerLocation"
         }
     }
+
+
+# ============================================================================
+# Pairing Routes
+# ============================================================================
+
+@app.post("/pair", response_model=schemas.PairingResponse)
+def pair(
+    payload: schemas.PairingRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Create or join a couple via pairing code.
+
+    This endpoint supports two actions:
+    1. "create": Generate a new couple_id (pairing code) for the creator
+    2. "join": Join an existing couple using a pairing code
+
+    Create Action:
+        - Generates a unique 8-character alphanumeric pairing code
+        - No location is stored yet (that happens on first /updateLocation call)
+        - Returns the generated couple_id with role="creator"
+
+    Join Action:
+        - Validates the pairing code exists
+        - Enforces 2-device limit per couple
+        - Returns couple_id with role="partner" and count of existing devices
+
+    Args:
+        payload: Pairing request with action, device_id, and optionally couple_id
+        db: Database session (injected via dependency)
+
+    Returns:
+        PairingResponse: Pairing details with couple_id, device_id, and role
+
+    Raises:
+        HTTPException: 400 if validation fails, 404 if pairing code not found,
+                      409 if couple already has 2 devices, 500 for database errors
+    """
+    try:
+        # ====================================================================
+        # CREATE ACTION: Generate a new pairing code
+        # ====================================================================
+        if payload.action == "create":
+            # Generate unique couple_id
+            couple_id = crud.generate_unique_couple_id(db)
+
+            logger.info(
+                f"Pairing code created: couple_id={couple_id}, device_id={payload.device_id}"
+            )
+
+            return schemas.PairingResponse(
+                couple_id=couple_id,
+                device_id=payload.device_id,
+                role="creator",
+                existing_devices=None,
+            )
+
+        # ====================================================================
+        # JOIN ACTION: Join an existing couple
+        # ====================================================================
+        elif payload.action == "join":
+            # Validate couple_id is provided
+            if not payload.couple_id:
+                logger.warning(
+                    f"Join attempt without couple_id from device_id={payload.device_id}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="couple_id is required for 'join' action"
+                )
+
+            # Check how many devices are already paired
+            device_count = crud.count_devices_for_couple(db, payload.couple_id)
+
+            # Case 1: Pairing code doesn't exist (no devices)
+            if device_count == 0:
+                logger.info(
+                    f"Join attempt with non-existent couple_id={payload.couple_id}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Pairing code not found"
+                )
+
+            # Case 2: Couple already has 2 devices (limit reached)
+            if device_count >= 2:
+                logger.warning(
+                    f"Join attempt rejected: couple_id={payload.couple_id} already has {device_count} devices"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This couple is already paired with 2 devices"
+                )
+
+            # Case 3: 1 device exists, allow join
+            logger.info(
+                f"Device joined couple: couple_id={payload.couple_id}, "
+                f"device_id={payload.device_id}, existing_devices={device_count}"
+            )
+
+            return schemas.PairingResponse(
+                couple_id=payload.couple_id,
+                device_id=payload.device_id,
+                role="partner",
+                existing_devices=device_count,
+            )
+
+        # ====================================================================
+        # INVALID ACTION
+        # ====================================================================
+        else:
+            logger.warning(
+                f"Invalid pairing action: {payload.action} from device_id={payload.device_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid action: {payload.action}. Must be 'create' or 'join'"
+            )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Database error during pairing for device_id={payload.device_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process pairing request due to database error"
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during pairing for device_id={payload.device_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
 
 
 # ============================================================================
@@ -291,6 +433,5 @@ def partner_location(
 # ============================================================================
 # Future Endpoints (To be implemented in later phases)
 # ============================================================================
-# POST /pair - Generate or validate pairing codes (Phase 3)
 # Rate limiting middleware (Phase 4)
 # Deployment configuration (Phase 5)

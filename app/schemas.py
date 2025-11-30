@@ -7,7 +7,7 @@ and serializes outgoing responses.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -169,6 +169,103 @@ class PartnerLocationResponse(BaseModel):
                     "longitude": -122.2712,
                     "updated_at": "2025-11-29T12:32:56.789Z",
                     "staleness_seconds": 45
+                }
+            ]
+        }
+    }
+
+
+class PairingRequest(BaseModel):
+    """
+    Request schema for pairing operations.
+
+    Supports two actions:
+    - "create": Generate a new couple_id (pairing code)
+    - "join": Join an existing couple using a pairing code
+
+    For "create" action, couple_id is ignored.
+    For "join" action, couple_id is required.
+    """
+
+    action: Literal["create", "join"] = Field(
+        ...,
+        description="Action to perform: 'create' a new couple or 'join' an existing one"
+    )
+
+    device_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Unique identifier for this device (UUID)"
+    )
+
+    couple_id: Optional[str] = Field(
+        default=None,
+        min_length=8,
+        max_length=8,
+        description="Pairing code (required for 'join' action, ignored for 'create')"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "action": "create",
+                    "device_id": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                {
+                    "action": "join",
+                    "couple_id": "AB12CD34",
+                    "device_id": "660f9511-f39c-52e5-b827-557766551111"
+                }
+            ]
+        }
+    }
+
+
+class PairingResponse(BaseModel):
+    """
+    Response schema for pairing operations.
+
+    Returns the pairing details including the couple_id (pairing code),
+    device_id, role (creator or partner), and optionally the count of
+    existing devices when joining.
+    """
+
+    couple_id: str = Field(
+        ...,
+        description="The pairing code for this couple"
+    )
+
+    device_id: str = Field(
+        ...,
+        description="The device ID that was paired"
+    )
+
+    role: Literal["creator", "partner"] = Field(
+        ...,
+        description="Role of this device: 'creator' (generated code) or 'partner' (joined)"
+    )
+
+    existing_devices: Optional[int] = Field(
+        default=None,
+        description="Number of devices in couple before this one joined (only for 'join' action)"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "couple_id": "AB12CD34",
+                    "device_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "role": "creator",
+                    "existing_devices": None
+                },
+                {
+                    "couple_id": "AB12CD34",
+                    "device_id": "660f9511-f39c-52e5-b827-557766551111",
+                    "role": "partner",
+                    "existing_devices": 1
                 }
             ]
         }

@@ -1,6 +1,6 @@
 # Lover's Compass API - Usage Examples
 
-**Version**: 0.2.0 (Phase 2)
+**Version**: 0.3.0 (Phase 3)
 **Base URL**: `http://localhost:8000` (development)
 
 ---
@@ -14,7 +14,93 @@ All examples use `curl` for demonstration, but any HTTP client will work.
 
 ## Endpoints
 
-### 1. Health Check
+### 1. Pairing
+
+**Endpoint**: `POST /pair`
+
+**Purpose**: Create a new couple (generate pairing code) or join an existing couple
+
+#### Action: Create (Generate Pairing Code)
+
+**Request Body**:
+```json
+{
+  "action": "create",
+  "device_id": "DEVICE_A_UUID"
+}
+```
+
+**Example**:
+```bash
+curl -X POST http://localhost:8000/pair \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "create",
+    "device_id": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+**Response**:
+```json
+{
+  "couple_id": "AB12CD34",
+  "device_id": "550e8400-e29b-41d4-a716-446655440000",
+  "role": "creator",
+  "existing_devices": null
+}
+```
+
+#### Action: Join (Use Pairing Code)
+
+**Request Body**:
+```json
+{
+  "action": "join",
+  "couple_id": "AB12CD34",
+  "device_id": "DEVICE_B_UUID"
+}
+```
+
+**Example**:
+```bash
+curl -X POST http://localhost:8000/pair \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "join",
+    "couple_id": "AB12CD34",
+    "device_id": "660f9511-f39c-52e5-b827-557766551111"
+  }'
+```
+
+**Response** (successful join):
+```json
+{
+  "couple_id": "AB12CD34",
+  "device_id": "660f9511-f39c-52e5-b827-557766551111",
+  "role": "partner",
+  "existing_devices": 1
+}
+```
+
+**Error Response** (pairing code not found):
+```json
+{
+  "detail": "Pairing code not found"
+}
+```
+HTTP Status: 404
+
+**Error Response** (couple already full):
+```json
+{
+  "detail": "This couple is already paired with 2 devices"
+}
+```
+HTTP Status: 409
+
+---
+
+### 2. Health Check
 
 **Endpoint**: `GET /health`
 
@@ -34,7 +120,7 @@ curl http://localhost:8000/health
 
 ---
 
-### 2. Update Location
+### 3. Update Location
 
 **Endpoint**: `POST /updateLocation`
 
@@ -107,7 +193,7 @@ curl -X POST http://localhost:8000/updateLocation \
 
 ---
 
-### 3. Get Partner Location
+### 4. Get Partner Location
 
 **Endpoint**: `GET /partnerLocation`
 
@@ -172,14 +258,55 @@ curl "http://localhost:8000/partnerLocation?couple_id=ABC123XY&device_id=device-
 
 ## Complete Workflow Example
 
-### Scenario: Two Devices Sharing Location
+### Scenario: Complete Pairing and Location Sharing
 
-**Step 1**: Device 1 updates location
+**Step 1**: Device 1 creates a couple (generates pairing code)
+```bash
+curl -X POST http://localhost:8000/pair \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "create",
+    "device_id": "device-001"
+  }'
+```
+
+**Response**:
+```json
+{
+  "couple_id": "AB12CD34",
+  "device_id": "device-001",
+  "role": "creator",
+  "existing_devices": null
+}
+```
+
+**Step 2**: Device 2 joins using the pairing code
+```bash
+curl -X POST http://localhost:8000/pair \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "join",
+    "couple_id": "AB12CD34",
+    "device_id": "device-002"
+  }'
+```
+
+**Response**:
+```json
+{
+  "couple_id": "AB12CD34",
+  "device_id": "device-002",
+  "role": "partner",
+  "existing_devices": 1
+}
+```
+
+**Step 3**: Device 1 updates location
 ```bash
 curl -X POST http://localhost:8000/updateLocation \
   -H "Content-Type: application/json" \
   -d '{
-    "couple_id": "ABC123XY",
+    "couple_id": "AB12CD34",
     "device_id": "device-001",
     "latitude": 37.7749,
     "longitude": -122.4194,
@@ -187,12 +314,12 @@ curl -X POST http://localhost:8000/updateLocation \
   }'
 ```
 
-**Step 2**: Device 2 updates location
+**Step 4**: Device 2 updates location
 ```bash
 curl -X POST http://localhost:8000/updateLocation \
   -H "Content-Type: application/json" \
   -d '{
-    "couple_id": "ABC123XY",
+    "couple_id": "AB12CD34",
     "device_id": "device-002",
     "latitude": 37.8044,
     "longitude": -122.2712,
@@ -200,9 +327,9 @@ curl -X POST http://localhost:8000/updateLocation \
   }'
 ```
 
-**Step 3**: Device 1 queries partner location (gets Device 2's location)
+**Step 5**: Device 1 queries partner location (gets Device 2's location)
 ```bash
-curl "http://localhost:8000/partnerLocation?couple_id=ABC123XY&device_id=device-001"
+curl "http://localhost:8000/partnerLocation?couple_id=AB12CD34&device_id=device-001"
 ```
 
 **Response**:
@@ -217,9 +344,9 @@ curl "http://localhost:8000/partnerLocation?couple_id=ABC123XY&device_id=device-
 }
 ```
 
-**Step 4**: Device 2 queries partner location (gets Device 1's location)
+**Step 6**: Device 2 queries partner location (gets Device 1's location)
 ```bash
-curl "http://localhost:8000/partnerLocation?couple_id=ABC123XY&device_id=device-002"
+curl "http://localhost:8000/partnerLocation?couple_id=AB12CD34&device_id=device-002"
 ```
 
 **Response**:

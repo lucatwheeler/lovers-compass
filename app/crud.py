@@ -9,6 +9,7 @@ Only couple_id, device_id, and success/failure states are logged.
 """
 
 import logging
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -19,6 +20,25 @@ from app.models import DeviceLocation
 from app.schemas import LocationUpdateRequest
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Pairing Code Generation
+# ============================================================================
+
+def _generate_pairing_code() -> str:
+    """
+    Generate a cryptographically secure 8-character pairing code.
+
+    Uses uppercase letters (A-Z) and digits (2-9) only.
+    Excludes ambiguous characters: 0, O, 1, I, l
+
+    Returns:
+        str: 8-character uppercase alphanumeric pairing code
+    """
+    # Allowed characters: A-Z (excluding O and I) and digits 2-9 (excluding 0 and 1)
+    allowed_chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 32 characters total
+    return ''.join(secrets.choice(allowed_chars) for _ in range(8))
 
 
 def upsert_device_location(
@@ -218,5 +238,75 @@ def get_all_devices_for_couple(db: Session, couple_id: str) -> list[DeviceLocati
     except SQLAlchemyError as e:
         logger.error(
             f"Database error during device retrieval for couple_id={couple_id}: {str(e)}"
+        )
+        raise
+
+
+# ============================================================================
+# Pairing Functions
+# ============================================================================
+
+def generate_unique_couple_id(db: Session) -> str:
+    """
+    Generate a unique couple_id (pairing code) that doesn't already exist.
+
+    Generates 8-character cryptographically secure codes and checks for
+    collisions in the database. Retries until a unique code is found.
+
+    Args:
+        db: SQLAlchemy database session
+
+    Returns:
+        str: Unique 8-character uppercase alphanumeric pairing code
+
+    Raises:
+        SQLAlchemyError: If database operation fails
+    """
+    max_attempts = 100  # Safety limit to prevent infinite loop
+    attempt = 0
+
+    while attempt < max_attempts:
+        couple_id = _generate_pairing_code()
+
+        # Check if this couple_id already exists
+        count = count_devices_for_couple(db, couple_id)
+
+        if count == 0:
+            logger.info(f"Generated unique couple_id (pairing code) on attempt {attempt + 1}")
+            return couple_id
+
+        attempt += 1
+        logger.debug(f"Pairing code collision on attempt {attempt}, regenerating")
+
+    # This should be extremely unlikely with 32^8 possible combinations
+    logger.error("Failed to generate unique couple_id after 100 attempts")
+    raise RuntimeError("Failed to generate unique pairing code after maximum attempts")
+
+
+def couple_exists(db: Session, couple_id: str) -> bool:
+    """
+    Check if a couple_id exists in the database.
+
+    Args:
+        db: SQLAlchemy database session
+        couple_id: Unique identifier for the couple
+
+    Returns:
+        bool: True if at least one device exists for this couple_id, False otherwise
+
+    Raises:
+        SQLAlchemyError: If database operation fails
+    """
+    try:
+        count = count_devices_for_couple(db, couple_id)
+        exists = count > 0
+
+        logger.debug(f"Couple existence check for couple_id={couple_id}: {exists}")
+
+        return exists
+
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Database error during couple existence check for couple_id={couple_id}: {str(e)}"
         )
         raise
