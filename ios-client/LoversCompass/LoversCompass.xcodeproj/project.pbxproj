@@ -20,6 +20,10 @@
 		312519E32EDFBE590093C3FD /* LocationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E22EDFBE590093C3FD /* LocationModels.swift */; };
 		312519E62EDFBEE70093C3FD /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E52EDFBEE70093C3FD /* MainView.swift */; };
 		312519F02EE00A000093C3FD /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519EF2EE00A000093C3FD /* LocationManager.swift */; };
+		312519F22EE00B020093C3FD /* CompassCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F12EE00B010093C3FD /* CompassCalculator.swift */; };
+		312519F42EE00B040093C3FD /* HeadingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F32EE00B030093C3FD /* HeadingManager.swift */; };
+		312519F62EE00B060093C3FD /* CompassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F52EE00B050093C3FD /* CompassView.swift */; };
+		312519F82EE00C080093C3FD /* CompassCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F72EE00C070093C3FD /* CompassCalculatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +60,10 @@
 		312519E22EDFBE590093C3FD /* LocationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationModels.swift; sourceTree = "<group>"; };
 		312519E52EDFBEE70093C3FD /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		312519EF2EE00A000093C3FD /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
+		312519F12EE00B010093C3FD /* CompassCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassCalculator.swift; sourceTree = "<group>"; };
+		312519F32EE00B030093C3FD /* HeadingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingManager.swift; sourceTree = "<group>"; };
+		312519F52EE00B050093C3FD /* CompassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassView.swift; sourceTree = "<group>"; };
+		312519F72EE00C070093C3FD /* CompassCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassCalculatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +138,7 @@
 			isa = PBXGroup;
 			children = (
 				312519C02EDFAD4E0093C3FD /* LoversCompassTests.swift */,
+				312519F72EE00C070093C3FD /* CompassCalculatorTests.swift */,
 			);
 			path = LoversCompassTests;
 			sourceTree = "<group>";
@@ -148,6 +157,8 @@
 			children = (
 				312519DA2EDFAE1A0093C3FD /* DeviceIdManager.swift */,
 				312519EF2EE00A000093C3FD /* LocationManager.swift */,
+				312519F12EE00B010093C3FD /* CompassCalculator.swift */,
+				312519F32EE00B030093C3FD /* HeadingManager.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -173,6 +184,7 @@
 			isa = PBXGroup;
 			children = (
 				312519E52EDFBEE70093C3FD /* MainView.swift */,
+				312519F52EE00B050093C3FD /* CompassView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -312,6 +324,9 @@
 				312519DE2EDFB21A0093C3FD /* PairingModels.swift in Sources */,
 				312519DB2EDFAE1A0093C3FD /* DeviceIdManager.swift in Sources */,
 				312519F02EE00A000093C3FD /* LocationManager.swift in Sources */,
+				312519F22EE00B020093C3FD /* CompassCalculator.swift in Sources */,
+				312519F42EE00B040093C3FD /* HeadingManager.swift in Sources */,
+				312519F62EE00B060093C3FD /* CompassView.swift in Sources */,
 				312519B22EDFAD4C0093C3FD /* ContentView.swift in Sources */,
 				312519E12EDFB2440093C3FD /* APIClient.swift in Sources */,
 				312519B02EDFAD4C0093C3FD /* LoversCompassApp.swift in Sources */,
@@ -323,6 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				312519C12EDFAD4E0093C3FD /* LoversCompassTests.swift in Sources */,
+				312519F82EE00C080093C3FD /* CompassCalculatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

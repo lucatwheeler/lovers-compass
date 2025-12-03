@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 struct MainView: View {
     let deviceId: String
@@ -7,184 +8,227 @@ struct MainView: View {
     private let apiClient = APIClient.shared
 
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var headingManager = HeadingManager()
 
-    @State private var lastUpdateStatus: String = "Waiting for GPS..."
-    @State private var partnerStatus: String = "Partner location not fetched yet."
-    @State private var partnerCoords: (lat: Double, lon: Double)?
+    @State private var partnerLocation: CLLocationCoordinate2D?
+    @State private var partnerConnected: Bool = false
+    @State private var staleness: Int?
     @State private var syncTimer: Timer?
+    @State private var showDebugInfo: Bool = false
 
     // Sync interval in seconds
     private let syncInterval: TimeInterval = 10
 
+    // MARK: - Computed Properties
+
+    private var distanceText: String {
+        guard let my = locationManager.currentLocation, let partner = partnerLocation else {
+            return ""
+        }
+        let meters = CompassCalculator.distance(
+            from: my,
+            to: partner
+        )
+        return CompassCalculator.formatDistance(meters)
+    }
+
+    // MARK: - Body
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Text("Lover's Compass")
-                    .font(.largeTitle.bold())
+        ZStack {
+            // Soft gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.97, blue: 0.97),
+                    Color(red: 0.98, green: 0.95, blue: 0.98),
+                    Color(red: 0.96, green: 0.96, blue: 1.0)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                Text("Couple ID: \(coupleId)")
-                    .font(.footnote.monospaced())
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+            VStack(spacing: 20) {
+                // Header
+                headerView
 
-                // Location permission denied view
+                Spacer()
+
+                // Permission denied view OR compass
                 if locationManager.isDenied {
                     permissionDeniedView
                 } else {
-                    // Normal operation view
-                    statusView
+                    // The compass
+                    CompassView(
+                        myLocation: locationManager.currentLocation,
+                        partnerLocation: partnerLocation,
+                        deviceHeading: headingManager.heading,
+                        partnerConnected: partnerConnected,
+                        staleness: staleness
+                    )
+
+                    // Distance badge
+                    if partnerConnected && !distanceText.isEmpty {
+                        DistanceBadgeView(distance: distanceText, staleness: staleness)
+                            .transition(.scale.combined(with: .opacity))
+                    }
                 }
 
                 Spacer()
+
+                // Status footer
+                footerView
             }
             .padding()
-            .onAppear {
-                startLocationServices()
-            }
-            .onDisappear {
-                stopLocationServices()
-            }
+        }
+        .onAppear {
+            startServices()
+        }
+        .onDisappear {
+            stopServices()
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Header
+
+    private var headerView: some View {
+        VStack(spacing: 8) {
+            Text("Lover's Compass")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(.pink)
+
+            // Couple ID as a subtle badge
+            Text(coupleId)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundColor(.gray.opacity(0.5))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(.gray.opacity(0.1))
+                )
+        }
+    }
+
+    // MARK: - Permission Denied
 
     private var permissionDeniedView: some View {
         VStack(spacing: 16) {
             Image(systemName: "location.slash.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.red.opacity(0.7))
+                .foregroundColor(.pink.opacity(0.5))
 
-            Text("Location Access Required")
+            Text("Location Access Needed")
                 .font(.headline)
+                .foregroundColor(.gray)
 
-            Text("Lover's Compass needs your location to point toward your partner. Please enable location access in Settings.")
+            Text("Enable location access so the compass can point toward your partner")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                .padding(.horizontal, 40)
 
             Button {
                 locationManager.openSettings()
             } label: {
                 Label("Open Settings", systemImage: "gear")
-                    .frame(maxWidth: .infinity)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(.pink)
+                    )
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal)
+            .padding(.top, 8)
         }
-        .padding()
-        .background(Color.red.opacity(0.05))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .padding(32)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.ultraThinMaterial)
+        )
     }
 
-    private var statusView: some View {
-        VStack(spacing: 16) {
-            // My location status
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "location.fill")
-                        .foregroundColor(locationManager.currentLocation != nil ? .green : .orange)
-                    Text("My Location")
-                        .font(.headline)
-                }
+    // MARK: - Footer
 
-                if let location = locationManager.currentLocation {
-                    Text(String(format: "(%.4f, %.4f)", location.latitude, location.longitude))
-                        .font(.footnote.monospaced())
-                        .foregroundColor(.secondary)
-                } else if locationManager.isNotDetermined {
-                    Text("Requesting permission...")
-                        .font(.footnote)
-                        .foregroundColor(.orange)
-                } else {
-                    Text("Acquiring GPS signal...")
-                        .font(.footnote)
-                        .foregroundColor(.orange)
-                }
+    private var footerView: some View {
+        VStack(spacing: 8) {
+            // Connection status
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(partnerConnected ? .green : .orange)
+                    .frame(width: 8, height: 8)
 
-                Text(lastUpdateStatus)
+                Text(partnerConnected ? "Connected" : "Searching for partner...")
                     .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.green.opacity(0.05))
-            .cornerRadius(12)
-
-            // Partner location status
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "heart.fill")
-                        .foregroundColor(partnerCoords != nil ? .pink : .gray)
-                    Text("Partner Location")
-                        .font(.headline)
-                }
-
-                if let coords = partnerCoords {
-                    Text(String(format: "(%.4f, %.4f)", coords.lat, coords.lon))
-                        .font(.footnote.monospaced())
-                        .foregroundColor(.secondary)
-                }
-
-                Text(partnerStatus)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.pink.opacity(0.05))
-            .cornerRadius(12)
-
-            // Error display
-            if let error = locationManager.locationError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .padding(.horizontal)
+                    .foregroundColor(.gray)
             }
 
-            // Manual sync button (for debugging/testing)
-            Button {
-                Task { await syncOnce() }
-            } label: {
-                Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
-                    .frame(maxWidth: .infinity)
+            // Debug toggle (tap to show/hide details)
+            if showDebugInfo {
+                debugInfoView
             }
-            .buttonStyle(.bordered)
         }
-        .padding(.horizontal)
+        .onTapGesture {
+            withAnimation {
+                showDebugInfo.toggle()
+            }
+        }
+    }
+
+    // MARK: - Debug Info
+
+    private var debugInfoView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let loc = locationManager.currentLocation {
+                Text("You: \(String(format: "%.4f, %.4f", loc.latitude, loc.longitude))")
+            }
+            if let partner = partnerLocation {
+                Text("Partner: \(String(format: "%.4f, %.4f", partner.latitude, partner.longitude))")
+            }
+            Text("Heading: \(String(format: "%.0f°", headingManager.heading))")
+        }
+        .font(.system(size: 10, design: .monospaced))
+        .foregroundColor(.gray.opacity(0.6))
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.gray.opacity(0.1))
+        )
     }
 }
 
-// MARK: - Location Services
+// MARK: - Services
 
 extension MainView {
 
-    private func startLocationServices() {
-        // Request permission and start GPS
+    private func startServices() {
+        // Start location updates
         if locationManager.isNotDetermined {
             locationManager.requestPermission()
         } else if locationManager.isAuthorized {
             locationManager.startUpdating()
         }
 
+        // Start heading updates (compass)
+        headingManager.startUpdating()
+
         // Start periodic sync timer
         syncTimer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in
             Task { await syncOnce() }
         }
 
-        // Initial sync after short delay to let GPS acquire
+        // Initial sync after short delay
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             await syncOnce()
         }
     }
 
-    private func stopLocationServices() {
+    private func stopServices() {
         locationManager.stopUpdating()
+        headingManager.stopUpdating()
         syncTimer?.invalidate()
         syncTimer = nil
     }
@@ -195,10 +239,7 @@ extension MainView {
     }
 
     private func sendMyLocation() async {
-        guard let location = locationManager.currentLocation else {
-            lastUpdateStatus = "No GPS fix yet"
-            return
-        }
+        guard let location = locationManager.currentLocation else { return }
 
         let request = LocationUpdateRequest(
             couple_id: coupleId,
@@ -209,11 +250,9 @@ extension MainView {
         )
 
         do {
-            let response = try await apiClient.updateLocation(request)
-            let time = response.updated_at.suffix(8) // Just show time portion
-            lastUpdateStatus = "Sent at \(time)"
+            _ = try await apiClient.updateLocation(request)
         } catch {
-            lastUpdateStatus = "Send failed: \(error.localizedDescription)"
+            print("Send location error: \(error)")
         }
     }
 
@@ -224,28 +263,31 @@ extension MainView {
                 deviceId: deviceId
             )
 
-            if !response.partner_found {
-                partnerStatus = "No partner found yet"
-                partnerCoords = nil
-                return
-            }
+            await MainActor.run {
+                if !response.partner_found {
+                    partnerConnected = false
+                    partnerLocation = nil
+                    staleness = nil
+                    return
+                }
 
-            if response.is_sharing != true {
-                partnerStatus = "Partner not sharing"
-                partnerCoords = nil
-                return
-            }
+                if response.is_sharing != true {
+                    partnerConnected = false
+                    partnerLocation = nil
+                    staleness = response.staleness_seconds
+                    return
+                }
 
-            if let lat = response.latitude, let lon = response.longitude {
-                partnerCoords = (lat, lon)
-                let stale = response.staleness_seconds ?? 0
-                partnerStatus = "Updated \(stale)s ago"
-            } else {
-                partnerStatus = "No coordinates available"
-                partnerCoords = nil
+                if let lat = response.latitude, let lon = response.longitude {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        partnerConnected = true
+                        partnerLocation = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                        staleness = response.staleness_seconds
+                    }
+                }
             }
         } catch {
-            partnerStatus = "Fetch failed: \(error.localizedDescription)"
+            print("Fetch partner error: \(error)")
         }
     }
 }
@@ -253,5 +295,5 @@ extension MainView {
 // MARK: - Preview
 
 #Preview {
-    MainView(deviceId: "TEST-DEVICE", coupleId: "TESTCODE")
+    MainView(deviceId: "TEST-DEVICE", coupleId: "LOVE1234")
 }
