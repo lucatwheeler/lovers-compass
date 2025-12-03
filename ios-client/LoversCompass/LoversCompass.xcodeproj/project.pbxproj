@@ -15,6 +15,10 @@
 		312519CB2EDFAD4E0093C3FD /* LoversCompassUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519CA2EDFAD4E0093C3FD /* LoversCompassUITests.swift */; };
 		312519CD2EDFAD4E0093C3FD /* LoversCompassUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519CC2EDFAD4E0093C3FD /* LoversCompassUITestsLaunchTests.swift */; };
 		312519DB2EDFAE1A0093C3FD /* DeviceIdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519DA2EDFAE1A0093C3FD /* DeviceIdManager.swift */; };
+		312519DE2EDFB21A0093C3FD /* PairingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519DD2EDFB21A0093C3FD /* PairingModels.swift */; };
+		312519E12EDFB2440093C3FD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E02EDFB2440093C3FD /* APIClient.swift */; };
+		312519E32EDFBE590093C3FD /* LocationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E22EDFBE590093C3FD /* LocationModels.swift */; };
+		312519E62EDFBEE70093C3FD /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E52EDFBEE70093C3FD /* MainView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +50,10 @@
 		312519CA2EDFAD4E0093C3FD /* LoversCompassUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoversCompassUITests.swift; sourceTree = "<group>"; };
 		312519CC2EDFAD4E0093C3FD /* LoversCompassUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoversCompassUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		312519DA2EDFAE1A0093C3FD /* DeviceIdManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdManager.swift; sourceTree = "<group>"; };
+		312519DD2EDFB21A0093C3FD /* PairingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingModels.swift; sourceTree = "<group>"; };
+		312519E02EDFB2440093C3FD /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		312519E22EDFBE590093C3FD /* LocationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationModels.swift; sourceTree = "<group>"; };
+		312519E52EDFBEE70093C3FD /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +84,9 @@
 		312519A32EDFAD4C0093C3FD = {
 			isa = PBXGroup;
 			children = (
+				312519E42EDFBED60093C3FD /* Views */,
+				312519DF2EDFB22F0093C3FD /* Networking */,
+				312519DC2EDFB1FD0093C3FD /* Models */,
 				312519D92EDFADDE0093C3FD /* Utils */,
 				312519AE2EDFAD4C0093C3FD /* LoversCompass */,
 				312519BF2EDFAD4E0093C3FD /* LoversCompassTests */,
@@ -136,6 +147,31 @@
 				312519DA2EDFAE1A0093C3FD /* DeviceIdManager.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		312519DC2EDFB1FD0093C3FD /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				312519DD2EDFB21A0093C3FD /* PairingModels.swift */,
+				312519E22EDFBE590093C3FD /* LocationModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		312519DF2EDFB22F0093C3FD /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				312519E02EDFB2440093C3FD /* APIClient.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		312519E42EDFBED60093C3FD /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				312519E52EDFBEE70093C3FD /* MainView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -268,8 +304,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				312519E32EDFBE590093C3FD /* LocationModels.swift in Sources */,
+				312519E62EDFBEE70093C3FD /* MainView.swift in Sources */,
+				312519DE2EDFB21A0093C3FD /* PairingModels.swift in Sources */,
 				312519DB2EDFAE1A0093C3FD /* DeviceIdManager.swift in Sources */,
 				312519B22EDFAD4C0093C3FD /* ContentView.swift in Sources */,
+				312519E12EDFB2440093C3FD /* APIClient.swift in Sources */,
 				312519B02EDFAD4C0093C3FD /* LoversCompassApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
