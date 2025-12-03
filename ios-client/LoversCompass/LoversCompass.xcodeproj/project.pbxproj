@@ -19,6 +19,7 @@
 		312519E12EDFB2440093C3FD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E02EDFB2440093C3FD /* APIClient.swift */; };
 		312519E32EDFBE590093C3FD /* LocationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E22EDFBE590093C3FD /* LocationModels.swift */; };
 		312519E62EDFBEE70093C3FD /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519E52EDFBEE70093C3FD /* MainView.swift */; };
+		312519F02EE00A000093C3FD /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519EF2EE00A000093C3FD /* LocationManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +55,7 @@
 		312519E02EDFB2440093C3FD /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		312519E22EDFBE590093C3FD /* LocationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationModels.swift; sourceTree = "<group>"; };
 		312519E52EDFBEE70093C3FD /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		312519EF2EE00A000093C3FD /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				312519DA2EDFAE1A0093C3FD /* DeviceIdManager.swift */,
+				312519EF2EE00A000093C3FD /* LocationManager.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -308,6 +311,7 @@
 				312519E62EDFBEE70093C3FD /* MainView.swift in Sources */,
 				312519DE2EDFB21A0093C3FD /* PairingModels.swift in Sources */,
 				312519DB2EDFAE1A0093C3FD /* DeviceIdManager.swift in Sources */,
+				312519F02EE00A000093C3FD /* LocationManager.swift in Sources */,
 				312519B22EDFAD4C0093C3FD /* ContentView.swift in Sources */,
 				312519E12EDFB2440093C3FD /* APIClient.swift in Sources */,
 				312519B02EDFAD4C0093C3FD /* LoversCompassApp.swift in Sources */,
@@ -477,6 +481,7 @@
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass needs your location to point toward your partner";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -506,6 +511,7 @@
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass needs your location to point toward your partner";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
