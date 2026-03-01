@@ -8,7 +8,7 @@ and business logic will be added in separate modules in future phases.
 """
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, DateTime, Boolean, Index
+from sqlalchemy import Column, String, Float, DateTime, Boolean, Index, Integer
 
 from app.database import Base
 
@@ -63,13 +63,13 @@ class DeviceLocation(Base):
     # Location coordinates
     latitude = Column(
         Float,
-        nullable=False,
+        nullable=True,
         comment="Latitude coordinate (-90 to 90)"
     )
 
     longitude = Column(
         Float,
-        nullable=False,
+        nullable=True,
         comment="Longitude coordinate (-180 to 180)"
     )
 
@@ -104,3 +104,24 @@ class DeviceLocation(Base):
             f"is_sharing={self.is_sharing}, "
             f"updated_at={self.updated_at})>"
         )
+
+
+class Poke(Base):
+    """
+    Stores poke notifications between paired devices.
+
+    When one partner sends a poke, a record is created. The recipient
+    polls for unseen pokes and they are marked as seen after retrieval.
+    """
+
+    __tablename__ = "pokes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    couple_id = Column(String(8), nullable=False, index=True)
+    from_device_id = Column(String(100), nullable=False)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    seen = Column(Boolean, default=False, nullable=False)

@@ -24,6 +24,9 @@
 		312519F42EE00B040093C3FD /* HeadingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F32EE00B030093C3FD /* HeadingManager.swift */; };
 		312519F62EE00B060093C3FD /* CompassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F52EE00B050093C3FD /* CompassView.swift */; };
 		312519F82EE00C080093C3FD /* CompassCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312519F72EE00C070093C3FD /* CompassCalculatorTests.swift */; };
+		31251A012EE100010093C3FD /* PokeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31251A002EE100000093C3FD /* PokeModels.swift */; };
+		31251A032EE100030093C3FD /* PokeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31251A022EE100020093C3FD /* PokeManager.swift */; };
+		31251A052EE100050093C3FD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31251A042EE100040093C3FD /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +67,10 @@
 		312519F32EE00B030093C3FD /* HeadingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingManager.swift; sourceTree = "<group>"; };
 		312519F52EE00B050093C3FD /* CompassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassView.swift; sourceTree = "<group>"; };
 		312519F72EE00C070093C3FD /* CompassCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassCalculatorTests.swift; sourceTree = "<group>"; };
+		31251A002EE100000093C3FD /* PokeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PokeModels.swift; sourceTree = "<group>"; };
+		31251A022EE100020093C3FD /* PokeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PokeManager.swift; sourceTree = "<group>"; };
+		31251A042EE100040093C3FD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		31251A062EE100060093C3FD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +129,7 @@
 				312519B12EDFAD4C0093C3FD /* ContentView.swift */,
 				312519B32EDFAD4E0093C3FD /* Assets.xcassets */,
 				312519B52EDFAD4E0093C3FD /* Preview Content */,
+				31251A062EE100060093C3FD /* Info.plist */,
 			);
 			path = LoversCompass;
 			sourceTree = "<group>";
@@ -159,6 +167,7 @@
 				312519EF2EE00A000093C3FD /* LocationManager.swift */,
 				312519F12EE00B010093C3FD /* CompassCalculator.swift */,
 				312519F32EE00B030093C3FD /* HeadingManager.swift */,
+				31251A022EE100020093C3FD /* PokeManager.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -168,6 +177,7 @@
 			children = (
 				312519DD2EDFB21A0093C3FD /* PairingModels.swift */,
 				312519E22EDFBE590093C3FD /* LocationModels.swift */,
+				31251A002EE100000093C3FD /* PokeModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -185,6 +195,7 @@
 			children = (
 				312519E52EDFBEE70093C3FD /* MainView.swift */,
 				312519F52EE00B050093C3FD /* CompassView.swift */,
+				31251A042EE100040093C3FD /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -330,6 +341,9 @@
 				312519B22EDFAD4C0093C3FD /* ContentView.swift in Sources */,
 				312519E12EDFB2440093C3FD /* APIClient.swift in Sources */,
 				312519B02EDFAD4C0093C3FD /* LoversCompassApp.swift in Sources */,
+				31251A012EE100010093C3FD /* PokeModels.swift in Sources */,
+				31251A032EE100030093C3FD /* PokeManager.swift in Sources */,
+				31251A052EE100050093C3FD /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -497,7 +511,10 @@
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass needs your location to point toward your partner";
+				INFOPLIST_FILE = LoversCompass/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Lover's Compass uses your location in the background so your partner's compass always points to you, even when the app is not open.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Lover's Compass uses your location in the background to keep your partner's compass updated.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass uses your location to point the compass toward your partner.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -527,7 +544,10 @@
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass needs your location to point toward your partner";
+				INFOPLIST_FILE = LoversCompass/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Lover's Compass uses your location in the background so your partner's compass always points to you, even when the app is not open.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Lover's Compass uses your location in the background to keep your partner's compass updated.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Lover's Compass uses your location to point the compass toward your partner.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

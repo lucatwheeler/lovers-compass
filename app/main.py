@@ -21,6 +21,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from slowapi import Limiter
@@ -189,32 +190,15 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/")
-async def root():
-    """
-    Root endpoint with API information.
-
-    Provides basic information about the API and links to documentation.
-
-    Returns:
-        dict: API metadata
-    """
+@app.get("/api")
+async def api_info():
+    """API information endpoint."""
     return {
         "name": "Lover's Compass API",
-        "version": "0.3.0",
+        "version": "0.5.0",
         "status": "running",
         "docs": "/docs",
         "health": "/health",
-        "endpoints": {
-            "pair": "POST /pair",
-            "updateLocation": "POST /updateLocation",
-            "partnerLocation": "GET /partnerLocation"
-        },
-        "rate_limiting": {
-            "pair": "5 requests/minute per IP",
-            "updateLocation": "6 requests/minute per device, 60/minute per IP",
-            "partnerLocation": "12 requests/minute per device, 120/minute per IP"
-        }
     }
 
 
@@ -264,6 +248,21 @@ def pair(
         if payload.action == "create":
             # Generate unique couple_id
             couple_id = crud.generate_unique_couple_id(db)
+
+            # Store creator device record so join can find this couple_id
+            from app.models import DeviceLocation
+            from datetime import datetime, timezone as tz
+            creator_record = DeviceLocation(
+                id=f"{couple_id}:{payload.device_id}",
+                couple_id=couple_id,
+                device_id=payload.device_id,
+                latitude=None,
+                longitude=None,
+                updated_at=datetime.now(tz.utc),
+                is_sharing=False,
+            )
+            db.add(creator_record)
+            db.commit()
 
             logger.info(
                 f"Pairing code created: couple_id={couple_id}, device_id={payload.device_id}"
@@ -315,6 +314,22 @@ def pair(
                 )
 
             # Case 3: 1 device exists, allow join
+            # Create a DeviceLocation record for the joining device so the
+            # couple is immediately at 2 devices and no third device can join.
+            from app.models import DeviceLocation
+            from datetime import datetime, timezone as tz
+            joiner_record = DeviceLocation(
+                id=f"{payload.couple_id}:{payload.device_id}",
+                couple_id=payload.couple_id,
+                device_id=payload.device_id,
+                latitude=None,
+                longitude=None,
+                updated_at=datetime.now(tz.utc),
+                is_sharing=False,
+            )
+            db.add(joiner_record)
+            db.commit()
+
             logger.info(
                 f"Device joined couple: couple_id={payload.couple_id}, "
                 f"device_id={payload.device_id}, existing_devices={device_count}"
@@ -485,8 +500,8 @@ def partner_location(
 
         staleness_seconds = int((now - partner_updated_at).total_seconds())
 
-        # Case 2: Partner not sharing location
-        if not partner.is_sharing:
+        # Case 2: Partner not sharing location (or hasn't sent coordinates yet)
+        if not partner.is_sharing or partner.latitude is None or partner.longitude is None:
             logger.debug(
                 f"Partner not sharing for couple_id={couple_id}, device_id={device_id}"
             )
@@ -530,6 +545,100 @@ def partner_location(
 
 
 # ============================================================================
-# Future Endpoints (To be implemented in later phases)
+# Unpair Route
 # ============================================================================
-# Deployment configuration (Phase 5)
+
+@app.delete("/api/pair/{couple_id}")
+@limiter.limit("5/minute")
+def delete_pair(
+    request: Request,
+    couple_id: str,
+    device_id: str,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """
+    Unpair a couple, deleting all associated data.
+
+    Requires the caller's device_id as a query parameter to verify
+    they are part of the couple.
+    """
+    try:
+        # Verify the device belongs to this couple
+        devices = crud.get_all_devices_for_couple(db, couple_id)
+        device_ids = [d.device_id for d in devices]
+
+        if not devices:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Couple not found"
+            )
+
+        if device_id not in device_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Device is not part of this couple"
+            )
+
+        deleted = crud.delete_couple(db, couple_id)
+        logger.info(f"Couple unpaired: couple_id={couple_id}, by device_id={device_id}")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Successfully unpaired",
+            "devices_removed": deleted,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unpairing couple {couple_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unpair")
+
+
+# ============================================================================
+# Poke Routes
+# ============================================================================
+
+@app.post("/poke", responses={200: {"model": schemas.PokeResponse}})
+@limiter.limit("10/minute")
+def send_poke(
+    request: Request,
+    payload: schemas.PokeRequest,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Send a poke to your partner."""
+    try:
+        crud.create_poke(db, payload.couple_id, payload.device_id)
+        return JSONResponse(content={"success": True, "message": "Poke sent!"})
+    except Exception as e:
+        logger.error(f"Error sending poke: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send poke")
+
+
+@app.get("/pokes", responses={200: {"model": schemas.PokesResponse}})
+@limiter.limit("30/minute")
+def get_pokes(
+    request: Request,
+    couple_id: str,
+    device_id: str,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Get unseen pokes for this device (marks them as seen)."""
+    try:
+        count, latest_at = crud.get_and_clear_unseen_pokes(db, couple_id, device_id)
+        data = {"pokes": count, "latest_at": None}
+        if latest_at:
+            data["latest_at"] = latest_at.isoformat() + "Z"
+        return JSONResponse(content=data)
+    except Exception as e:
+        logger.error(f"Error getting pokes: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get pokes")
+
+
+# ============================================================================
+# Static Files (must be last - catches all unmatched routes)
+# ============================================================================
+import os
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(_static_dir):
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")

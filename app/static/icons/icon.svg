@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#FF69B4"/>
+  <circle cx="256" cy="256" r="200" fill="white" opacity="0.9"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#FFB6C1" stroke-width="3"/>
+  <!-- Compass arrow north -->
+  <path d="M256,90 L272,250 L256,235 L240,250 Z" fill="#C71585"/>
+  <!-- Compass arrow south -->
+  <path d="M256,422 L272,262 L256,277 L240,262 Z" fill="#FFB6C1"/>
+  <!-- Heart at tip -->
+  <path d="M256,68 C250,54 238,54 238,68 C238,82 256,96 256,96 C256,96 274,82 274,68 C274,54 262,54 256,68Z" fill="#FF69B4" stroke="#C71585" stroke-width="1.5"/>
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="8" fill="#C71585"/>
+  <!-- Cardinal labels -->
+  <text x="256" y="140" text-anchor="middle" fill="#C71585" font-family="sans-serif" font-size="24" font-weight="bold">N</text>
+  <text x="256" y="395" text-anchor="middle" fill="#C71585" font-family="sans-serif" font-size="24" font-weight="bold">S</text>
+  <text x="380" y="264" text-anchor="middle" fill="#C71585" font-family="sans-serif" font-size="24" font-weight="bold">E</text>
+  <text x="132" y="264" text-anchor="middle" fill="#C71585" font-family="sans-serif" font-size="24" font-weight="bold">W</text>
+</svg>

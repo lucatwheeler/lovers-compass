@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#FF69B4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Lover's Compass</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Poke banner -->
+  <div id="poke-banner" class="poke-banner hidden"></div>
+
+  <!-- Offline indicator -->
+  <div id="offline-indicator" class="offline-indicator hidden">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="1" y1="1" x2="23" y2="23"/>
+      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+    </svg>
+    <span>Offline</span>
+  </div>
+
+  <!-- GPS permission denied banner -->
+  <div id="gps-error-banner" class="gps-error-banner hidden">
+    <div class="gps-error-content">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#C71585" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 8v4M12 16h.01"/>
+      </svg>
+      <h3 class="gps-error-title">Location Access Needed</h3>
+      <p class="gps-error-text">Lover's Compass needs your location to point you toward your partner. Please allow location access to continue.</p>
+      <button class="btn btn-primary" onclick="retryLocationPermission()">Try Again</button>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Screen 1: Pair -->
+  <!-- ============================================ -->
+  <div id="screen-pair" class="screen">
+    <div class="pair-container">
+      <div class="app-logo">
+        <svg viewBox="0 0 80 80" width="80" height="80">
+          <path d="M40,15 C32,0 16,0 16,15 C16,35 40,50 40,50 C40,50 64,35 64,15 C64,0 48,0 40,15Z" fill="#FF69B4"/>
+        </svg>
+      </div>
+      <h1 class="app-title">Lover's Compass</h1>
+      <p class="app-tagline">Always pointing to your heart</p>
+
+      <!-- Pair buttons (initial state) -->
+      <div id="pair-buttons" class="pair-section">
+        <button id="btn-create" class="btn btn-primary btn-large" onclick="createCompass()">
+          Create a new compass
+        </button>
+        <div class="divider"><span>or</span></div>
+        <button id="btn-show-join" class="btn btn-secondary btn-large" onclick="showJoinSection()">
+          Join your partner
+        </button>
+      </div>
+
+      <!-- Join section (shown when "Join" tapped) -->
+      <div id="join-section" class="pair-section hidden">
+        <p class="join-label">Enter your partner's code</p>
+        <input
+          type="text"
+          id="join-code"
+          class="code-input"
+          maxlength="8"
+          placeholder="ABCD1234"
+          autocapitalize="characters"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="btn-join" class="btn btn-primary btn-large" onclick="joinCompass()">
+          Connect
+        </button>
+        <button class="btn btn-text" onclick="showPairButtons()">Back</button>
+      </div>
+
+      <!-- Waiting section (shown after creating) -->
+      <div id="waiting-section" class="pair-section hidden">
+        <div class="pulse-heart">
+          <svg viewBox="0 0 60 60" width="60" height="60">
+            <path d="M30,12 C24,0 12,0 12,12 C12,28 30,40 30,40 C30,40 48,28 48,12 C48,0 36,0 30,12Z" fill="#FF69B4"/>
+          </svg>
+        </div>
+        <p class="waiting-label">Share this code with your partner</p>
+        <div class="code-display">
+          <span id="waiting-code" class="code-text"></span>
+          <button class="btn-copy" onclick="copyCode()" title="Copy code">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <p class="waiting-status">Waiting for your partner to connect...</p>
+        <button class="btn btn-text" onclick="cancelWaiting()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Screen 2: Compass -->
+  <!-- ============================================ -->
+  <div id="screen-compass" class="screen hidden">
+    <!-- Header -->
+    <div class="compass-header">
+      <div class="sharing-indicator">
+        <span id="sharing-dot" class="dot dot-green"></span>
+        <span id="sharing-label" class="sharing-text">Sharing</span>
+      </div>
+      <button class="btn-icon" onclick="showScreen('settings')" title="Settings">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Compass -->
+    <div class="compass-wrapper">
+      <div class="compass-container">
+        <div class="compass-ring">
+          <!-- Tick marks -->
+          <div class="tick-marks" id="tick-marks"></div>
+          <!-- Cardinal directions -->
+          <span class="cardinal n">N</span>
+          <span class="cardinal e">E</span>
+          <span class="cardinal s">S</span>
+          <span class="cardinal w">W</span>
+        </div>
+        <!-- Needle -->
+        <div class="compass-needle" id="compass-needle">
+          <svg viewBox="0 0 40 160" width="40" height="160">
+            <!-- Heart tip -->
+            <path d="M20,8 C16,0 8,0 8,8 C8,18 20,28 20,28 C20,28 32,18 32,8 C32,0 24,0 20,8Z" fill="#FF69B4" stroke="#C71585" stroke-width="1"/>
+            <!-- Arrow shaft -->
+            <rect x="18" y="26" width="4" height="108" rx="2" fill="url(#shaft-gradient)"/>
+            <!-- Tail feathers -->
+            <path d="M20,134 L10,150 L17,141 L20,156 L23,141 L30,150 Z" fill="#FFB6C1" stroke="#C71585" stroke-width="0.5"/>
+            <defs>
+              <linearGradient id="shaft-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#C71585"/>
+                <stop offset="100%" stop-color="#FFB6C1"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <!-- Center dot (heartbeat pulse) -->
+        <div class="compass-center heartbeat"></div>
+      </div>
+    </div>
+
+    <!-- Distance display -->
+    <div class="distance-display">
+      <p id="distance-text" class="distance-text">Searching for your partner...</p>
+    </div>
+
+    <!-- Poke button -->
+    <button id="btn-poke" class="btn-poke" onclick="sendPoke()">
+      <svg viewBox="0 0 60 60" width="36" height="36">
+        <path d="M30,10 C24,0 12,0 12,12 C12,28 30,42 30,42 C30,42 48,28 48,12 C48,0 36,0 30,10Z" fill="white"/>
+      </svg>
+      <span>Poke</span>
+    </button>
+
+    <!-- Sharing toggle -->
+    <div class="sharing-toggle">
+      <label class="toggle-label">
+        <input type="checkbox" id="sharing-checkbox" checked onchange="toggleSharing()">
+        <span class="toggle-slider"></span>
+        <span class="toggle-text">Share my location</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Screen 3: Settings -->
+  <!-- ============================================ -->
+  <div id="screen-settings" class="screen hidden">
+    <div class="settings-container">
+      <div class="settings-header">
+        <button class="btn-icon" onclick="showScreen('compass')" title="Back">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <h2 class="settings-title">Settings</h2>
+        <div style="width:24px"></div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Your Pairing Code</h3>
+        <div class="code-display">
+          <span id="settings-code" class="code-text"></span>
+          <button class="btn-copy" onclick="copyCode()" title="Copy code">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <p class="settings-hint">Share this code to re-pair on another device</p>
+      </div>
+
+      <div class="settings-card">
+        <h3>Connection</h3>
+        <button class="btn btn-danger btn-large" onclick="unpair()">
+          Unpair
+        </button>
+        <p class="settings-hint">This will disconnect you from your partner</p>
+      </div>
+
+      <div class="settings-card">
+        <h3>About</h3>
+        <p class="about-text">
+          Lover's Compass helps you always know which direction your partner is.
+          Your location is never stored historically — only the latest position
+          is kept, and only your partner can see it.
+        </p>
+        <p class="about-version">v0.5.0</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -5,12 +5,12 @@ Tests the pairing functionality including:
 - Pairing code generation (format, uniqueness, security)
 - POST /pair CREATE action
 - POST /pair JOIN action
+- DELETE /api/pair/{couple_id} unpair
 - Error handling (404, 409, 400, 500)
 - Schema validation
 """
 
 import pytest
-import re
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -48,36 +48,27 @@ def override_get_db():
 # Override the database dependency
 app.dependency_overrides[get_db] = override_get_db
 
-# Create global test client using context manager
-# Use a module-scoped fixture to avoid recreation
-@pytest.fixture(scope="module")
-def test_app():
-    """Return the FastAPI app for testing."""
-    return app
-
-
-client = None  # Will be initialized in setup
-
-
-def setup_module():
-    """Initialize test client before running tests."""
-    global client
-    client = TestClient(app)
-
-
-def teardown_module():
-    """Clean up test client after all tests."""
-    global client
-    if client:
-        client.__exit__(None, None, None)
+# Disable rate limiting for tests by resetting the limiter storage before each test
+from app.rate_limit import limiter, device_limiter_body, device_limiter_query
 
 
 @pytest.fixture(autouse=True)
 def setup_database():
-    """Create fresh database tables before each test."""
+    """Create fresh database tables and reset rate limits before each test."""
     Base.metadata.create_all(bind=engine)
+    # Reset rate limit storage to avoid cross-test rate limit issues
+    limiter.reset()
+    device_limiter_body.reset()
+    device_limiter_query.reset()
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture()
+def client():
+    """Create a fresh TestClient for each test."""
+    with TestClient(app) as c:
+        yield c
 
 
 # ============================================================================
@@ -87,7 +78,7 @@ def setup_database():
 class TestPairingCodeGeneration:
     """Test the pairing code generation logic."""
 
-    def test_code_format(self):
+    def test_code_format(self, client):
         """Test that generated codes match the expected format."""
         db = TestingSessionLocal()
         try:
@@ -112,7 +103,7 @@ class TestPairingCodeGeneration:
         finally:
             db.close()
 
-    def test_code_uniqueness(self):
+    def test_code_uniqueness(self, client):
         """Test that generated codes are unique."""
         db = TestingSessionLocal()
         try:
@@ -125,7 +116,7 @@ class TestPairingCodeGeneration:
         finally:
             db.close()
 
-    def test_collision_detection(self):
+    def test_collision_detection(self, client):
         """Test that the system detects and handles collisions."""
         db = TestingSessionLocal()
         try:
@@ -147,7 +138,7 @@ class TestPairingCodeGeneration:
         finally:
             db.close()
 
-    def test_cryptographic_randomness(self):
+    def test_cryptographic_randomness(self, client):
         """Test that codes use cryptographically secure randomness."""
         db = TestingSessionLocal()
         try:
@@ -171,7 +162,7 @@ class TestPairingCodeGeneration:
 class TestPairCreate:
     """Test the CREATE action of the /pair endpoint."""
 
-    def test_create_success(self):
+    def test_create_success(self, client):
         """Test successful couple creation."""
         response = client.post("/pair", json={
             "action": "create",
@@ -193,7 +184,7 @@ class TestPairCreate:
         assert data["role"] == "creator"
         assert data["existing_devices"] is None
 
-    def test_create_multiple_couples(self):
+    def test_create_multiple_couples(self, client):
         """Test creating multiple different couples."""
         codes = []
 
@@ -210,21 +201,21 @@ class TestPairCreate:
         # All codes should be unique
         assert len(codes) == len(set(codes)), "Duplicate couple_ids generated"
 
-    def test_create_ignores_provided_couple_id(self):
+    def test_create_ignores_provided_couple_id(self, client):
         """Test that CREATE action ignores any provided couple_id."""
         response = client.post("/pair", json={
             "action": "create",
             "device_id": "device-ignore-test",
-            "couple_id": "IGNORED12"  # Should be ignored
+            "couple_id": "ABCDEFGH"  # Valid format but should be ignored
         })
 
         assert response.status_code == 200
         data = response.json()
 
         # Should generate new code, not use provided one
-        assert data["couple_id"] != "IGNORED12"
+        assert data["couple_id"] != "ABCDEFGH"
 
-    def test_create_with_special_device_ids(self):
+    def test_create_with_special_device_ids(self, client):
         """Test CREATE with various device_id formats."""
         test_cases = [
             "550e8400-e29b-41d4-a716-446655440000",  # UUID format
@@ -252,9 +243,9 @@ class TestPairCreate:
 class TestPairJoin:
     """Test the JOIN action of the /pair endpoint."""
 
-    def test_join_success(self):
+    def test_join_success(self, client):
         """Test successful joining of an existing couple."""
-        # First, create a couple
+        # First, create a couple (this now stores a DeviceLocation record)
         create_response = client.post("/pair", json={
             "action": "create",
             "device_id": "device-creator"
@@ -262,16 +253,7 @@ class TestPairJoin:
         assert create_response.status_code == 200
         couple_id = create_response.json()["couple_id"]
 
-        # Add location to create the couple in database
-        client.post("/updateLocation", json={
-            "couple_id": couple_id,
-            "device_id": "device-creator",
-            "latitude": 37.7749,
-            "longitude": -122.4194,
-            "is_sharing": True
-        })
-
-        # Now join as second device
+        # Now join as second device (creator already has 1 device record)
         join_response = client.post("/pair", json={
             "action": "join",
             "couple_id": couple_id,
@@ -287,43 +269,33 @@ class TestPairJoin:
         assert data["role"] == "partner"
         assert data["existing_devices"] == 1
 
-    def test_join_nonexistent_code_404(self):
+    def test_join_nonexistent_code_404(self, client):
         """Test joining with a non-existent pairing code returns 404."""
         response = client.post("/pair", json={
             "action": "join",
-            "couple_id": "NOTEXIST",
+            "couple_id": "ABCDEFGH",
             "device_id": "device-test"
         })
 
         assert response.status_code == 404
         assert "Pairing code not found" in response.json()["detail"]
 
-    def test_join_full_couple_409(self):
+    def test_join_full_couple_409(self, client):
         """Test that joining a full couple (2 devices) returns 409."""
-        # Create couple
+        # Create couple (1 device)
         create_response = client.post("/pair", json={
             "action": "create",
             "device_id": "device-1"
         })
         couple_id = create_response.json()["couple_id"]
 
-        # Add first device location
-        client.post("/updateLocation", json={
+        # Join as second device (now 2 devices)
+        join_response = client.post("/pair", json={
+            "action": "join",
             "couple_id": couple_id,
-            "device_id": "device-1",
-            "latitude": 37.7749,
-            "longitude": -122.4194,
-            "is_sharing": True
+            "device_id": "device-2"
         })
-
-        # Add second device location
-        client.post("/updateLocation", json={
-            "couple_id": couple_id,
-            "device_id": "device-2",
-            "latitude": 37.8044,
-            "longitude": -122.2712,
-            "is_sharing": True
-        })
+        assert join_response.status_code == 200
 
         # Try to join as third device - should fail
         response = client.post("/pair", json={
@@ -335,7 +307,7 @@ class TestPairJoin:
         assert response.status_code == 409
         assert "already paired with 2 devices" in response.json()["detail"]
 
-    def test_join_without_couple_id_400(self):
+    def test_join_without_couple_id_400(self, client):
         """Test that JOIN without couple_id returns 400."""
         response = client.post("/pair", json={
             "action": "join",
@@ -346,8 +318,8 @@ class TestPairJoin:
         assert response.status_code == 400
         assert "couple_id is required" in response.json()["detail"]
 
-    def test_join_same_device_twice(self):
-        """Test that same device can't join twice (enforced by unique constraint)."""
+    def test_join_same_device_twice(self, client):
+        """Test that same device updating location is an upsert."""
         # Create couple
         create_response = client.post("/pair", json={
             "action": "create",
@@ -355,7 +327,7 @@ class TestPairJoin:
         })
         couple_id = create_response.json()["couple_id"]
 
-        # Add device location
+        # Add device location (updates the existing record from CREATE)
         response1 = client.post("/updateLocation", json={
             "couple_id": couple_id,
             "device_id": "device-duplicate",
@@ -391,7 +363,7 @@ class TestPairJoin:
 class TestSchemaValidation:
     """Test Pydantic schema validation."""
 
-    def test_invalid_action(self):
+    def test_invalid_action(self, client):
         """Test that invalid action values are rejected."""
         response = client.post("/pair", json={
             "action": "invalid",
@@ -400,7 +372,7 @@ class TestSchemaValidation:
 
         assert response.status_code == 422  # Pydantic validation error
 
-    def test_missing_device_id(self):
+    def test_missing_device_id(self, client):
         """Test that missing device_id is rejected."""
         response = client.post("/pair", json={
             "action": "create"
@@ -409,7 +381,7 @@ class TestSchemaValidation:
 
         assert response.status_code == 422
 
-    def test_empty_device_id(self):
+    def test_empty_device_id(self, client):
         """Test that empty device_id is rejected."""
         response = client.post("/pair", json={
             "action": "create",
@@ -418,7 +390,7 @@ class TestSchemaValidation:
 
         assert response.status_code == 422
 
-    def test_device_id_too_long(self):
+    def test_device_id_too_long(self, client):
         """Test that device_id longer than 100 chars is rejected."""
         long_device_id = "x" * 101
         response = client.post("/pair", json={
@@ -428,7 +400,7 @@ class TestSchemaValidation:
 
         assert response.status_code == 422
 
-    def test_couple_id_wrong_length(self):
+    def test_couple_id_wrong_length(self, client):
         """Test that couple_id with wrong length is rejected."""
         # Too short
         response1 = client.post("/pair", json={
@@ -446,7 +418,7 @@ class TestSchemaValidation:
         })
         assert response2.status_code == 422
 
-    def test_response_schema_structure(self):
+    def test_response_schema_structure(self, client):
         """Test that response matches expected schema."""
         response = client.post("/pair", json={
             "action": "create",
@@ -478,17 +450,17 @@ class TestSchemaValidation:
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
-    def test_malformed_json(self):
+    def test_malformed_json(self, client):
         """Test that malformed JSON is handled properly."""
         response = client.post(
             "/pair",
-            data="not valid json",
+            content="not valid json",
             headers={"Content-Type": "application/json"}
         )
 
         assert response.status_code == 422
 
-    def test_missing_action_field(self):
+    def test_missing_action_field(self, client):
         """Test request without action field."""
         response = client.post("/pair", json={
             "device_id": "device-test"
@@ -496,7 +468,7 @@ class TestErrorHandling:
 
         assert response.status_code == 422
 
-    def test_null_values(self):
+    def test_null_values(self, client):
         """Test handling of null values."""
         response = client.post("/pair", json={
             "action": None,
@@ -505,7 +477,7 @@ class TestErrorHandling:
 
         assert response.status_code == 422
 
-    def test_case_sensitive_action(self):
+    def test_case_sensitive_action(self, client):
         """Test that action field is case-sensitive."""
         response = client.post("/pair", json={
             "action": "CREATE",  # Should be lowercase "create"
@@ -523,7 +495,7 @@ class TestErrorHandling:
 class TestPairingIntegration:
     """Test complete pairing workflows."""
 
-    def test_complete_pairing_workflow(self):
+    def test_complete_pairing_workflow(self, client):
         """Test the complete pairing and location sharing workflow."""
         # Step 1: Device 1 creates couple
         create_response = client.post("/pair", json={
@@ -584,7 +556,7 @@ class TestPairingIntegration:
         assert partner2_data["latitude"] == 37.7749
         assert partner2_data["longitude"] == -122.4194
 
-    def test_multiple_couples_isolation(self):
+    def test_multiple_couples_isolation(self, client):
         """Test that multiple couples remain isolated."""
         # Create couple 1
         create1 = client.post("/pair", json={
@@ -629,7 +601,7 @@ class TestPairingIntegration:
         # Device cannot join wrong couple
         join_wrong = client.post("/pair", json={
             "action": "join",
-            "couple_id": "WRONGCOD",
+            "couple_id": "ABCDEFGH",
             "device_id": "malicious-device"
         })
         assert join_wrong.status_code == 404
@@ -642,22 +614,22 @@ class TestPairingIntegration:
 class TestCRUDFunctions:
     """Test CRUD helper functions directly."""
 
-    def test_count_devices_for_couple(self):
+    def test_count_devices_for_couple(self, client):
         """Test counting devices for a couple."""
         db = TestingSessionLocal()
         try:
-            # Create couple
+            # Create couple (now stores a DeviceLocation immediately)
             response = client.post("/pair", json={
                 "action": "create",
                 "device_id": "device-count-1"
             })
             couple_id = response.json()["couple_id"]
 
-            # Initially 0 devices (pairing doesn't create device_location)
+            # After CREATE, 1 device record exists (creator placeholder)
             count = crud.count_devices_for_couple(db, couple_id)
-            assert count == 0
+            assert count == 1, f"Expected 1 device after CREATE, found {count}"
 
-            # Add first device
+            # Update the creator's location (upserts existing record)
             client.post("/updateLocation", json={
                 "couple_id": couple_id,
                 "device_id": "device-count-1",
@@ -667,68 +639,53 @@ class TestCRUDFunctions:
             })
 
             count = crud.count_devices_for_couple(db, couple_id)
-            assert count == 1
+            assert count == 1, f"Expected 1 device after updateLocation, found {count}"
 
-            # Add second device
-            client.post("/updateLocation", json={
+            # Join as second device
+            client.post("/pair", json={
+                "action": "join",
                 "couple_id": couple_id,
-                "device_id": "device-count-2",
-                "latitude": 37.8044,
-                "longitude": -122.2712,
-                "is_sharing": True
+                "device_id": "device-count-2"
             })
 
             count = crud.count_devices_for_couple(db, couple_id)
-            assert count == 2
+            assert count == 2, f"Expected 2 devices after JOIN, found {count}"
         finally:
             db.close()
 
-    def test_couple_exists(self):
+    def test_couple_exists(self, client):
         """Test couple existence check."""
         db = TestingSessionLocal()
         try:
             # Non-existent couple
-            exists = crud.couple_exists(db, "NOTEXIST")
+            exists = crud.couple_exists(db, "ABCDEFGH")
             assert exists is False
 
-            # Create couple
+            # Create couple (now stores DeviceLocation immediately)
             response = client.post("/pair", json={
                 "action": "create",
                 "device_id": "device-exists"
             })
             couple_id = response.json()["couple_id"]
 
-            # Still doesn't exist (no device_location created yet)
-            exists = crud.couple_exists(db, couple_id)
-            assert exists is False
-
-            # Add device location
-            client.post("/updateLocation", json={
-                "couple_id": couple_id,
-                "device_id": "device-exists",
-                "latitude": 37.7749,
-                "longitude": -122.4194,
-                "is_sharing": True
-            })
-
-            # Now exists
+            # Now exists immediately (CREATE stores a record)
             exists = crud.couple_exists(db, couple_id)
             assert exists is True
         finally:
             db.close()
 
-    def test_get_all_devices_for_couple(self):
+    def test_get_all_devices_for_couple(self, client):
         """Test retrieving all devices for a couple."""
         db = TestingSessionLocal()
         try:
-            # Create couple and add devices
+            # Create couple
             response = client.post("/pair", json={
                 "action": "create",
                 "device_id": "device-all-1"
             })
             couple_id = response.json()["couple_id"]
 
-            # Add two devices
+            # Update creator's location
             client.post("/updateLocation", json={
                 "couple_id": couple_id,
                 "device_id": "device-all-1",
@@ -737,12 +694,11 @@ class TestCRUDFunctions:
                 "is_sharing": True
             })
 
-            client.post("/updateLocation", json={
+            # Join as second device
+            client.post("/pair", json={
+                "action": "join",
                 "couple_id": couple_id,
-                "device_id": "device-all-2",
-                "latitude": 37.8044,
-                "longitude": -122.2712,
-                "is_sharing": True
+                "device_id": "device-all-2"
             })
 
             # Get all devices
@@ -754,3 +710,55 @@ class TestCRUDFunctions:
             assert "device-all-2" in device_ids
         finally:
             db.close()
+
+
+# ============================================================================
+# Test 8: Unpair / DELETE Tests
+# ============================================================================
+
+class TestUnpair:
+    """Test the DELETE /api/pair/{couple_id} endpoint."""
+
+    def test_unpair_success(self, client):
+        """Test successful unpairing."""
+        # Create and join
+        create_resp = client.post("/pair", json={
+            "action": "create",
+            "device_id": "device-unpair-1"
+        })
+        couple_id = create_resp.json()["couple_id"]
+
+        client.post("/pair", json={
+            "action": "join",
+            "couple_id": couple_id,
+            "device_id": "device-unpair-2"
+        })
+
+        # Unpair
+        delete_resp = client.delete(
+            f"/api/pair/{couple_id}?device_id=device-unpair-1"
+        )
+        assert delete_resp.status_code == 200
+        data = delete_resp.json()
+        assert data["success"] is True
+        assert data["devices_removed"] == 2
+
+    def test_unpair_nonexistent_couple(self, client):
+        """Test unpairing a couple that doesn't exist."""
+        response = client.delete(
+            "/api/pair/ABCDEFGH?device_id=device-test"
+        )
+        assert response.status_code == 404
+
+    def test_unpair_wrong_device(self, client):
+        """Test unpairing with a device that's not part of the couple."""
+        create_resp = client.post("/pair", json={
+            "action": "create",
+            "device_id": "device-owner"
+        })
+        couple_id = create_resp.json()["couple_id"]
+
+        response = client.delete(
+            f"/api/pair/{couple_id}?device_id=device-intruder"
+        )
+        assert response.status_code == 403

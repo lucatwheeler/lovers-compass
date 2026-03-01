@@ -1,0 +1,845 @@
+/* ============================================ */
+/* Reset & Base */
+/* ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: linear-gradient(160deg, #FFF0F5 0%, #FFE4E1 40%, #FFF0F5 100%);
+  background-size: 300% 300%;
+  animation: gradient-shift 20s ease infinite;
+  color: #4A4A4A;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 100% 0%; }
+  50% { background-position: 100% 100%; }
+  75% { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============================================ */
+/* Screens */
+/* ============================================ */
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transition: opacity 0.3s ease;
+}
+
+.screen.hidden {
+  display: none;
+}
+
+/* ============================================ */
+/* Buttons */
+/* ============================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 14px 28px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-large {
+  width: 100%;
+  padding: 16px;
+  font-size: 17px;
+  border-radius: 18px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #FF69B4, #C71585);
+  color: white;
+  box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(255, 105, 180, 0.3);
+}
+
+.btn-secondary {
+  background: white;
+  color: #C71585;
+  border: 2px solid #FFB6C1;
+}
+
+.btn-secondary:active {
+  background: #FFF0F5;
+  transform: scale(0.97);
+}
+
+.btn-danger {
+  background: white;
+  color: #dc3545;
+  border: 2px solid #f5c2c7;
+}
+
+.btn-danger:active {
+  background: #fff5f5;
+  transform: scale(0.97);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 15px;
+  padding: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.btn-icon:active {
+  background: rgba(199, 21, 133, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ============================================ */
+/* Screen 1: Pair */
+/* ============================================ */
+.pair-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.app-logo {
+  margin-bottom: 8px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.app-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #C71585;
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
+}
+
+.app-tagline {
+  font-size: 16px;
+  color: #FF69B4;
+  margin-bottom: 40px;
+  font-style: italic;
+}
+
+.pair-section {
+  width: 100%;
+  max-width: 340px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: #ccc;
+  font-size: 14px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0c4cc;
+}
+
+.divider span {
+  padding: 0 16px;
+  color: #bbb;
+}
+
+/* Join section */
+.join-label {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.code-input {
+  width: 100%;
+  padding: 16px;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 6px;
+  border: 2px solid #FFB6C1;
+  border-radius: 16px;
+  outline: none;
+  background: white;
+  color: #C71585;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.code-input::placeholder {
+  color: #ddd;
+  letter-spacing: 4px;
+  font-weight: 400;
+}
+
+.code-input:focus {
+  border-color: #FF69B4;
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.15);
+}
+
+/* Waiting section */
+.pulse-heart {
+  animation: pulse 1.5s ease-in-out infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.waiting-label {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.code-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 12px 20px;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(199, 21, 133, 0.1);
+  margin-bottom: 16px;
+}
+
+.code-text {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #C71585;
+}
+
+.btn-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.btn-copy:active {
+  background: rgba(199, 21, 133, 0.1);
+}
+
+.waiting-status {
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 20px;
+  animation: fade-blink 2s ease-in-out infinite;
+}
+
+@keyframes fade-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ============================================ */
+/* Screen 2: Compass */
+/* ============================================ */
+.compass-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.sharing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-green {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.dot-gray {
+  background: #ccc;
+}
+
+.sharing-text {
+  font-size: 13px;
+  color: #888;
+}
+
+/* Compass */
+.compass-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.compass-container {
+  position: relative;
+  width: 280px;
+  height: 280px;
+}
+
+.compass-ring {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid #FFB6C1;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.95) 0%, rgba(255,240,245,0.8) 60%, rgba(255,182,193,0.2) 100%);
+  position: relative;
+  box-shadow:
+    0 4px 24px rgba(255, 105, 180, 0.2),
+    inset 0 0 40px rgba(255, 182, 193, 0.15);
+}
+
+.cardinal {
+  position: absolute;
+  font-weight: 700;
+  font-size: 16px;
+  color: #C71585;
+}
+
+.cardinal.n { top: 12px; left: 50%; transform: translateX(-50%); }
+.cardinal.e { right: 14px; top: 50%; transform: translateY(-50%); }
+.cardinal.s { bottom: 12px; left: 50%; transform: translateX(-50%); }
+.cardinal.w { left: 14px; top: 50%; transform: translateY(-50%); }
+
+/* Tick marks */
+.tick-marks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tick {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 2px;
+  height: 10px;
+  background: #e0b0c0;
+  transform-origin: 50% 134px;
+  border-radius: 1px;
+}
+
+.tick.major {
+  height: 14px;
+  width: 2px;
+  background: #d090a8;
+}
+
+/* Needle */
+.compass-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 160px;
+  margin-top: -80px;
+  margin-left: -20px;
+  transform-origin: 20px 80px;
+  transition: transform 0.35s cubic-bezier(0.25, 1.4, 0.55, 1);
+  z-index: 2;
+  filter: drop-shadow(0 2px 4px rgba(199, 21, 133, 0.3));
+  will-change: transform;
+}
+
+.compass-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #FF69B4, #C71585);
+  z-index: 3;
+  box-shadow: 0 0 8px rgba(199, 21, 133, 0.4);
+}
+
+.compass-center.heartbeat {
+  animation: heartbeat 1.8s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%   { transform: scale(1);   box-shadow: 0 0 8px rgba(199, 21, 133, 0.4); }
+  15%  { transform: scale(1.25); box-shadow: 0 0 16px rgba(255, 105, 180, 0.6); }
+  30%  { transform: scale(1);   box-shadow: 0 0 8px rgba(199, 21, 133, 0.4); }
+  45%  { transform: scale(1.15); box-shadow: 0 0 12px rgba(255, 105, 180, 0.5); }
+  60%  { transform: scale(1);   box-shadow: 0 0 8px rgba(199, 21, 133, 0.4); }
+  100% { transform: scale(1);   box-shadow: 0 0 8px rgba(199, 21, 133, 0.4); }
+}
+
+/* Distance display */
+.distance-display {
+  text-align: center;
+  padding: 8px 24px;
+}
+
+.distance-text {
+  font-size: 18px;
+  color: #666;
+  font-weight: 500;
+}
+
+.distance-value {
+  color: #C71585;
+  font-weight: 700;
+}
+
+.distance-close {
+  color: #FF69B4;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+/* Poke button */
+.btn-poke {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px auto;
+  padding: 14px 40px;
+  background: linear-gradient(135deg, #FF69B4, #C71585);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(255, 105, 180, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-poke:active {
+  transform: scale(0.9);
+  box-shadow: 0 2px 10px rgba(255, 105, 180, 0.3);
+}
+
+.btn-poke.poked {
+  animation: poke-bounce 0.5s cubic-bezier(0.25, 1.4, 0.55, 1);
+  background: linear-gradient(135deg, #C71585, #8B0A50);
+  box-shadow: 0 2px 12px rgba(199, 21, 133, 0.5);
+  pointer-events: none;
+}
+
+@keyframes poke-bounce {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* Sharing toggle */
+.sharing-toggle {
+  display: flex;
+  justify-content: center;
+  padding: 8px 24px 24px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #888;
+}
+
+.toggle-label input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 44px;
+  height: 24px;
+  background: #ddd;
+  border-radius: 12px;
+  position: relative;
+  transition: background 0.3s;
+}
+
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-label input:checked + .toggle-slider {
+  background: #FF69B4;
+}
+
+.toggle-label input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.toggle-text {
+  user-select: none;
+}
+
+/* ============================================ */
+/* Screen 3: Settings */
+/* ============================================ */
+.settings-container {
+  padding: 0 16px 40px;
+  padding-top: max(0px, env(safe-area-inset-top));
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.settings-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #C71585;
+}
+
+.settings-card {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(199, 21, 133, 0.08);
+}
+
+.settings-card h3 {
+  font-size: 15px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.settings-hint {
+  font-size: 13px;
+  color: #bbb;
+  margin-top: 10px;
+}
+
+.about-text {
+  font-size: 14px;
+  color: #777;
+  line-height: 1.6;
+}
+
+.about-version {
+  font-size: 13px;
+  color: #ccc;
+  margin-top: 12px;
+}
+
+/* ============================================ */
+/* Toast */
+/* ============================================ */
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(50, 50, 50, 0.9);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+
+.toast.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+  pointer-events: none;
+}
+
+.toast.toast-love {
+  background: rgba(199, 21, 133, 0.9);
+}
+
+/* ============================================ */
+/* Poke Banner */
+/* ============================================ */
+.poke-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #FF69B4, #C71585);
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  font-size: 16px;
+  font-weight: 600;
+  z-index: 900;
+  transform: translateY(-100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.poke-banner.visible {
+  transform: translateY(0);
+}
+
+.poke-banner.hidden {
+  display: block;
+  transform: translateY(-100%);
+}
+
+/* ============================================ */
+/* GPS Error Banner */
+/* ============================================ */
+.gps-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 240, 245, 0.97);
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.gps-error-banner.hidden {
+  display: none;
+}
+
+.gps-error-content {
+  text-align: center;
+  max-width: 320px;
+}
+
+.gps-error-content svg {
+  margin-bottom: 16px;
+}
+
+.gps-error-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #C71585;
+  margin-bottom: 12px;
+}
+
+.gps-error-text {
+  font-size: 15px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* ============================================ */
+/* Offline Indicator */
+/* ============================================ */
+.offline-indicator {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(100, 100, 100, 0.9);
+  color: white;
+  text-align: center;
+  padding: 8px 16px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.offline-indicator.hidden {
+  display: none;
+}
+
+/* ============================================ */
+/* Demo Mode */
+/* ============================================ */
+.demo-btn {
+  width: 100%;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 2px dashed #E8A0BF;
+  border-radius: 18px;
+  background: transparent;
+  color: #D1789B;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 16px;
+}
+
+.demo-btn:active {
+  background: rgba(232, 160, 191, 0.1);
+  transform: scale(0.97);
+}
+
+.demo-banner {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  background: #FFF3CD;
+  color: #664D03;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  z-index: 800;
+}
+
+/* ============================================ */
+/* Responsive */
+/* ============================================ */
+@media (min-width: 400px) {
+  .compass-container {
+    width: 320px;
+    height: 320px;
+  }
+
+  .tick {
+    transform-origin: 50% 154px;
+  }
+}
+
+@media (min-width: 500px) {
+  .compass-container {
+    width: 360px;
+    height: 360px;
+  }
+
+  .tick {
+    transform-origin: 50% 174px;
+  }
+}
+
+@media (min-height: 800px) {
+  .compass-wrapper {
+    padding: 24px 0;
+  }
+
+  .distance-display {
+    padding: 16px 24px;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) {
+  .compass-container {
+    width: 200px;
+    height: 200px;
+  }
+
+  .compass-needle svg {
+    width: 28px;
+    height: 112px;
+  }
+
+  .compass-needle {
+    width: 28px;
+    height: 112px;
+    margin-top: -56px;
+    margin-left: -14px;
+    transform-origin: 14px 56px;
+  }
+
+  .tick {
+    transform-origin: 50% 94px;
+  }
+
+  .cardinal { font-size: 13px; }
+  .cardinal.n { top: 8px; }
+  .cardinal.e { right: 10px; }
+  .cardinal.s { bottom: 8px; }
+  .cardinal.w { left: 10px; }
+}

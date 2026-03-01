@@ -4,6 +4,7 @@ import CoreLocation
 struct MainView: View {
     let deviceId: String
     let coupleId: String
+    var onUnpair: (() -> Void)? = nil
 
     private let apiClient = APIClient.shared
 
@@ -15,6 +16,10 @@ struct MainView: View {
     @State private var staleness: Int?
     @State private var syncTimer: Timer?
     @State private var showDebugInfo: Bool = false
+    @State private var showSettings: Bool = false
+
+    // Poke
+    @State private var pokeManager: PokeManager?
 
     // Sync interval in seconds
     private let syncInterval: TimeInterval = 10
@@ -25,10 +30,7 @@ struct MainView: View {
         guard let my = locationManager.currentLocation, let partner = partnerLocation else {
             return ""
         }
-        let meters = CompassCalculator.distance(
-            from: my,
-            to: partner
-        )
+        let meters = CompassCalculator.distance(from: my, to: partner)
         return CompassCalculator.formatDistance(meters)
     }
 
@@ -76,38 +78,167 @@ struct MainView: View {
 
                 Spacer()
 
+                // Poke button
+                pokeButton
+
                 // Status footer
                 footerView
             }
             .padding()
+
+            // Poke sent toast
+            if let pm = pokeManager, pm.showPokeSentToast {
+                VStack {
+                    Spacer()
+                    Text("\u{1F48C} Poke sent!")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(Color.pink)
+                                .shadow(color: .pink.opacity(0.4), radius: 10)
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 100)
+                }
+                .animation(.spring(response: 0.4), value: pm.showPokeSentToast)
+            }
+
+            // Poke received banner
+            if let pm = pokeManager, pm.showPokeBanner {
+                VStack {
+                    pokeBanner
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    Spacer()
+                }
+                .animation(.spring(response: 0.5), value: pm.showPokeBanner)
+            }
         }
+        .navigationBarHidden(true)
         .onAppear {
+            let pm = PokeManager(coupleId: coupleId, deviceId: deviceId)
+            pokeManager = pm
             startServices()
+            pm.startPolling()
         }
         .onDisappear {
             stopServices()
+            pokeManager?.stopPolling()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(coupleId: coupleId, onUnpair: {
+                onUnpair?()
+            })
         }
     }
 
     // MARK: - Header
 
     private var headerView: some View {
-        VStack(spacing: 8) {
-            Text("Lover's Compass")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.pink)
+        HStack {
+            Spacer()
 
-            // Couple ID as a subtle badge
-            Text(coupleId)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundColor(.gray.opacity(0.5))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(.gray.opacity(0.1))
-                )
+            VStack(spacing: 8) {
+                Text("Lover's Compass")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.pink)
+
+                Text(coupleId)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.gray.opacity(0.5))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(.gray.opacity(0.1))
+                    )
+            }
+
+            Spacer()
+
+            // Settings gear
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.pink.opacity(0.6))
+                    .padding(8)
+            }
         }
+    }
+
+    // MARK: - Poke Button
+
+    private var pokeButton: some View {
+        Button {
+            Task {
+                await pokeManager?.sendPoke()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text("\u{1F497}")
+                    .font(.system(size: 22))
+                Text("Poke your partner")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [.pink, Color(red: 0.9, green: 0.3, blue: 0.5)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: .pink.opacity(0.3), radius: 10, y: 5)
+            )
+        }
+        .disabled(pokeManager?.isSendingPoke == true)
+        .opacity(pokeManager?.isSendingPoke == true ? 0.6 : 1.0)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Poke Banner
+
+    @State private var pokePulse: Bool = false
+
+    private var pokeBanner: some View {
+        HStack(spacing: 10) {
+            Text("\u{1F497}")
+                .font(.system(size: 24))
+                .scaleEffect(pokePulse ? 1.2 : 1.0)
+                .animation(
+                    .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
+                    value: pokePulse
+                )
+                .onAppear { pokePulse = true }
+
+            Text("Your partner is thinking of you!")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.pink, Color(red: 0.85, green: 0.2, blue: 0.4)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .shadow(color: .pink.opacity(0.4), radius: 15, y: 5)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     // MARK: - Permission Denied
@@ -154,7 +285,6 @@ struct MainView: View {
 
     private var footerView: some View {
         VStack(spacing: 8) {
-            // Connection status
             HStack(spacing: 6) {
                 Circle()
                     .fill(partnerConnected ? .green : .orange)
@@ -165,7 +295,6 @@ struct MainView: View {
                     .foregroundColor(.gray)
             }
 
-            // Debug toggle (tap to show/hide details)
             if showDebugInfo {
                 debugInfoView
             }
@@ -187,7 +316,7 @@ struct MainView: View {
             if let partner = partnerLocation {
                 Text("Partner: \(String(format: "%.4f, %.4f", partner.latitude, partner.longitude))")
             }
-            Text("Heading: \(String(format: "%.0f°", headingManager.heading))")
+            Text("Heading: \(String(format: "%.0f\u{00B0}", headingManager.heading))")
         }
         .font(.system(size: 10, design: .monospaced))
         .foregroundColor(.gray.opacity(0.6))
@@ -204,22 +333,18 @@ struct MainView: View {
 extension MainView {
 
     private func startServices() {
-        // Start location updates
         if locationManager.isNotDetermined {
             locationManager.requestPermission()
         } else if locationManager.isAuthorized {
             locationManager.startUpdating()
         }
 
-        // Start heading updates (compass)
         headingManager.startUpdating()
 
-        // Start periodic sync timer
         syncTimer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in
             Task { await syncOnce() }
         }
 
-        // Initial sync after short delay
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             await syncOnce()
@@ -295,5 +420,7 @@ extension MainView {
 // MARK: - Preview
 
 #Preview {
-    MainView(deviceId: "TEST-DEVICE", coupleId: "LOVE1234")
+    NavigationStack {
+        MainView(deviceId: "TEST-DEVICE", coupleId: "LOVE1234")
+    }
 }

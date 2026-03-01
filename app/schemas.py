@@ -271,6 +271,27 @@ class PairingRequest(BaseModel):
     }
 
 
+class PokeRequest(BaseModel):
+    """Request schema for sending a poke to partner."""
+
+    couple_id: str = Field(..., min_length=1, max_length=100)
+    device_id: str = Field(..., min_length=1, max_length=100)
+
+
+class PokeResponse(BaseModel):
+    """Response schema for poke operations."""
+
+    success: bool
+    message: str
+
+
+class PokesResponse(BaseModel):
+    """Response schema for retrieving unseen pokes."""
+
+    pokes: int = Field(..., description="Number of unseen pokes")
+    latest_at: Optional[datetime] = Field(default=None)
+
+
 class PairingResponse(BaseModel):
     """
     Response schema for pairing operations.

@@ -45,3 +45,16 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Virtual environments
+.venv/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+
+# Test artifacts
+visual-test-screenshots/

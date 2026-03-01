@@ -16,7 +16,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.models import DeviceLocation
+from app.models import DeviceLocation, Poke
 from app.schemas import LocationUpdateRequest
 
 logger = logging.getLogger(__name__)
@@ -281,6 +281,93 @@ def generate_unique_couple_id(db: Session) -> str:
     # This should be extremely unlikely with 32^8 possible combinations
     logger.error("Failed to generate unique couple_id after 100 attempts")
     raise RuntimeError("Failed to generate unique pairing code after maximum attempts")
+
+
+def create_poke(db: Session, couple_id: str, from_device_id: str) -> Poke:
+    """Create a new poke from one device to their partner."""
+    try:
+        poke = Poke(
+            couple_id=couple_id,
+            from_device_id=from_device_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(poke)
+        db.commit()
+        db.refresh(poke)
+        logger.info(f"Poke created: couple_id={couple_id}, from={from_device_id}")
+        return poke
+    except SQLAlchemyError as e:
+        logger.error(f"Database error creating poke: {e}")
+        db.rollback()
+        raise
+
+
+def get_and_clear_unseen_pokes(
+    db: Session, couple_id: str, for_device_id: str
+) -> tuple[int, Optional[datetime]]:
+    """
+    Get count of unseen pokes for a device and mark them as seen.
+
+    Returns pokes sent BY the partner (from_device_id != for_device_id).
+    """
+    try:
+        pokes = (
+            db.query(Poke)
+            .filter(
+                Poke.couple_id == couple_id,
+                Poke.from_device_id != for_device_id,
+                Poke.seen == False,
+            )
+            .all()
+        )
+
+        count = len(pokes)
+        latest_at = None
+
+        if pokes:
+            latest_at = max(p.created_at for p in pokes)
+            for p in pokes:
+                p.seen = True
+            db.commit()
+
+        return count, latest_at
+    except SQLAlchemyError as e:
+        logger.error(f"Database error getting pokes: {e}")
+        db.rollback()
+        raise
+
+
+def delete_couple(db: Session, couple_id: str) -> int:
+    """
+    Delete all records for a couple (unpair).
+
+    Removes all DeviceLocation and Poke records for the given couple_id.
+
+    Args:
+        db: SQLAlchemy database session
+        couple_id: Unique identifier for the couple
+
+    Returns:
+        int: Number of device records deleted
+
+    Raises:
+        SQLAlchemyError: If database operation fails
+    """
+    try:
+        poke_count = db.query(Poke).filter(Poke.couple_id == couple_id).delete()
+        device_count = db.query(DeviceLocation).filter(
+            DeviceLocation.couple_id == couple_id
+        ).delete()
+        db.commit()
+        logger.info(
+            f"Couple deleted: couple_id={couple_id}, "
+            f"devices={device_count}, pokes={poke_count}"
+        )
+        return device_count
+    except SQLAlchemyError as e:
+        logger.error(f"Database error deleting couple {couple_id}: {e}")
+        db.rollback()
+        raise
 
 
 def couple_exists(db: Session, couple_id: str) -> bool:
