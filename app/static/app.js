@@ -226,7 +226,7 @@ function startDemoMode() {
     var banner = document.createElement('div');
     banner.id = 'demo-banner';
     banner.className = 'demo-banner';
-    banner.innerHTML = '🧭 Demo Mode — pair with a partner to go live!';
+    banner.innerHTML = '&#x2764;&#xFE0F; Demo Mode — pair with a partner to go live!';
     $('screen-compass').insertBefore(banner, $('screen-compass').firstChild);
   }
 
