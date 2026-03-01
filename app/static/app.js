@@ -18,6 +18,7 @@ const state = {
   myLng: null,
   partnerLat: null,
   partnerLng: null,
+  partnerStaleness: null,
   deviceHeading: null,
   currentRotation: 0,
   watchId: null,
@@ -29,6 +30,7 @@ const state = {
   isOnline: navigator.onLine,
   pokeQueue: [],
   networkRetryCount: 0,
+  lastSrDirection: null,
 };
 
 // ---- DOM References ----
@@ -49,6 +51,7 @@ function init() {
     startDemoMode();
   } else if (state.coupleId) {
     showScreen('compass');
+    showCompassLoading(true);
     startCompass();
   } else {
     showScreen('pair');
@@ -64,6 +67,31 @@ function init() {
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
   updateNetworkUI();
+
+  // Dismiss splash screen
+  dismissSplash();
+}
+
+function dismissSplash() {
+  var splash = $('splash-screen');
+  if (!splash) return;
+  setTimeout(function() {
+    splash.classList.add('fade-out');
+    setTimeout(function() { splash.remove(); }, 400);
+  }, 600);
+}
+
+function showCompassLoading(show) {
+  var loading = $('compass-loading');
+  var main = $('compass-main');
+  if (!loading || !main) return;
+  if (show) {
+    loading.classList.remove('hidden');
+    main.style.display = 'none';
+  } else {
+    loading.classList.add('hidden');
+    main.style.display = '';
+  }
 }
 
 // ---- UUID Generation ----
@@ -126,6 +154,7 @@ async function createCompass() {
 
     // Show waiting state
     $('pair-buttons').classList.add('hidden');
+    var demoBtn = $('btn-demo'); if (demoBtn) demoBtn.classList.add('hidden');
     $('waiting-section').classList.remove('hidden');
     $('waiting-code').textContent = state.coupleId;
 
@@ -143,6 +172,7 @@ async function createCompass() {
           clearInterval(state.waitingTimer);
           state.waitingTimer = null;
           showScreen('compass');
+          showCompassLoading(true);
           startCompass();
         }
       } catch (e) {
@@ -205,6 +235,7 @@ async function joinCompass() {
     localStorage.setItem('role', state.role);
 
     showScreen('compass');
+    showCompassLoading(true);
     startCompass();
   } catch (e) {
     showToast('Failed to connect. Check the code and try again.');
@@ -226,11 +257,13 @@ function startDemoMode() {
     var banner = document.createElement('div');
     banner.id = 'demo-banner';
     banner.className = 'demo-banner';
+    banner.setAttribute('role', 'status');
     banner.innerHTML = '&#x2764;&#xFE0F; Demo Mode — pair with a partner to go live!';
     $('screen-compass').insertBefore(banner, $('screen-compass').firstChild);
   }
 
   showScreen('compass');
+  showCompassLoading(false);
   startCompass();
 }
 
@@ -352,6 +385,9 @@ async function pollPartner() {
   if (window.demoMode) {
     state.partnerLat = window.demoPartnerLat;
     state.partnerLng = window.demoPartnerLng;
+    state.partnerStaleness = 0;
+    showCompassLoading(false);
+    updatePartnerStatusUI();
     updateCompassDisplay();
     return;
   }
@@ -365,18 +401,56 @@ async function pollPartner() {
     if (result.partner_found && result.is_sharing && result.latitude != null && result.longitude != null) {
       state.partnerLat = result.latitude;
       state.partnerLng = result.longitude;
+      state.partnerStaleness = result.staleness_seconds || 0;
       state.networkRetryCount = 0;
+      showCompassLoading(false);
+      updatePartnerStatusUI();
       updateCompassDisplay();
     } else if (result.partner_found && !result.is_sharing) {
       state.partnerLat = null;
       state.partnerLng = null;
+      state.partnerStaleness = result.staleness_seconds || null;
+      showCompassLoading(false);
+      updatePartnerStatusUI();
       $('distance-text').textContent = 'Waiting for partner\u2019s location\u2026';
       setNeedleRotation(0);
     } else {
+      state.partnerStaleness = null;
+      showCompassLoading(false);
+      updatePartnerStatusUI();
       $('distance-text').textContent = 'Waiting for your partner to connect\u2026';
     }
   } catch (e) {
     // Silently retry
+  }
+}
+
+function updatePartnerStatusUI() {
+  var dot = $('partner-dot');
+  var text = $('partner-status-text');
+  if (!dot || !text) return;
+
+  if (state.partnerStaleness === null) {
+    dot.className = 'dot dot-gray';
+    text.textContent = 'Partner offline';
+    return;
+  }
+
+  var staleSeconds = state.partnerStaleness;
+  if (staleSeconds <= 120) {
+    // Online: last update within 2 minutes
+    dot.className = 'dot dot-green-pulse';
+    text.textContent = 'Partner online';
+  } else {
+    // Offline: show last seen
+    dot.className = 'dot dot-gray';
+    var mins = Math.floor(staleSeconds / 60);
+    if (mins < 60) {
+      text.textContent = 'Last seen ' + mins + 'm ago';
+    } else {
+      var hrs = Math.floor(mins / 60);
+      text.textContent = 'Last seen ' + hrs + 'h ago';
+    }
   }
 }
 
@@ -395,6 +469,32 @@ function updateCompassDisplay() {
 
   setNeedleRotation(needleBearing);
   updateDistanceText(distance);
+  announceDirection(bearing, distance);
+}
+
+function announceDirection(bearing, distKm) {
+  var directions = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
+  var index = Math.round(bearing / 45) % 8;
+  var dir = directions[index];
+
+  // Only announce if direction changed
+  if (dir === state.lastSrDirection) return;
+  state.lastSrDirection = dir;
+
+  var distMiles = distKm * 0.621371;
+  var distText;
+  if (distMiles < 0.01) {
+    distText = 'right next to each other';
+  } else if (distMiles < 1) {
+    distText = Math.round(distKm * 3280.84) + ' feet away';
+  } else {
+    distText = distMiles.toFixed(1) + ' miles away';
+  }
+
+  var el = $('compass-sr-announcement');
+  if (el) {
+    el.textContent = 'Partner is ' + dir + ', ' + distText;
+  }
 }
 
 function setNeedleRotation(targetDeg) {

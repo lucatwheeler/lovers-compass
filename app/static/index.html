@@ -4,24 +4,79 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#FF69B4">
+  <meta name="description" content="Always know where your heart is. A compass that always points to your partner.">
+  <!-- Open Graph -->
+  <meta property="og:title" content="Lover's Compass">
+  <meta property="og:description" content="Always know where your heart is. A compass that always points to your partner.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/icons/icon.svg">
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Lover's Compass">
+  <meta name="twitter:description" content="Always know where your heart is. A compass that always points to your partner.">
+  <meta name="twitter:image" content="/icons/icon.svg">
+  <!-- PWA / iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lover's Compass">
   <title>Lover's Compass</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <!-- Splash screens for iOS PWA -->
+  <style>
+    /* iOS PWA splash screen simulation */
+    .splash-screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(160deg, #FFF0F5 0%, #FFE4E1 40%, #FFF0F5 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.4s ease;
+    }
+    .splash-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .splash-title {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: #C71585;
+      margin-top: 16px;
+    }
+    .splash-tagline {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      color: #FF69B4;
+      font-style: italic;
+      margin-top: 4px;
+    }
+  </style>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <!-- Splash screen for PWA launch -->
+  <div id="splash-screen" class="splash-screen" role="status" aria-label="Loading Lover's Compass">
+    <svg viewBox="0 0 80 80" width="80" height="80" aria-hidden="true">
+      <path d="M40,15 C32,0 16,0 16,15 C16,35 40,50 40,50 C40,50 64,35 64,15 C64,0 48,0 40,15Z" fill="#FF69B4"/>
+    </svg>
+    <div class="splash-title">Lover's Compass</div>
+    <div class="splash-tagline">Always pointing to your heart</div>
+  </div>
+
   <!-- Toast notification -->
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <!-- Poke banner -->
-  <div id="poke-banner" class="poke-banner hidden"></div>
+  <div id="poke-banner" class="poke-banner hidden" role="alert" aria-live="assertive"></div>
 
   <!-- Offline indicator -->
-  <div id="offline-indicator" class="offline-indicator hidden">
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+  <div id="offline-indicator" class="offline-indicator hidden" role="status" aria-live="polite">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <line x1="1" y1="1" x2="23" y2="23"/>
       <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
     </svg>
@@ -29,24 +84,24 @@
   </div>
 
   <!-- GPS permission denied banner -->
-  <div id="gps-error-banner" class="gps-error-banner hidden">
+  <div id="gps-error-banner" class="gps-error-banner hidden" role="alertdialog" aria-label="Location error">
     <div class="gps-error-content">
-      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#C71585" stroke-width="2">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#C71585" stroke-width="2" aria-hidden="true">
         <circle cx="12" cy="12" r="10"/>
         <path d="M12 8v4M12 16h.01"/>
       </svg>
       <h3 class="gps-error-title">Location Access Needed</h3>
       <p class="gps-error-text">Lover's Compass needs your location to point you toward your partner. Please allow location access to continue.</p>
-      <button class="btn btn-primary" onclick="retryLocationPermission()">Try Again</button>
+      <button class="btn btn-primary" onclick="retryLocationPermission()" aria-label="Retry location access">Try Again</button>
     </div>
   </div>
 
   <!-- ============================================ -->
   <!-- Screen 1: Pair -->
   <!-- ============================================ -->
-  <div id="screen-pair" class="screen">
+  <div id="screen-pair" class="screen" role="main" aria-label="Pairing screen">
     <div class="pair-container">
-      <div class="app-logo">
+      <div class="app-logo" aria-hidden="true">
         <svg viewBox="0 0 80 80" width="80" height="80">
           <path d="M40,15 C32,0 16,0 16,15 C16,35 40,50 40,50 C40,50 64,35 64,15 C64,0 48,0 40,15Z" fill="#FF69B4"/>
         </svg>
@@ -56,18 +111,18 @@
 
       <!-- Pair buttons (initial state) -->
       <div id="pair-buttons" class="pair-section">
-        <button id="btn-create" class="btn btn-primary btn-large" onclick="createCompass()">
+        <button id="btn-create" class="btn btn-primary btn-large" onclick="createCompass()" aria-label="Create a new compass pairing">
           Create a new compass
         </button>
-        <div class="divider"><span>or</span></div>
-        <button id="btn-show-join" class="btn btn-secondary btn-large" onclick="showJoinSection()">
+        <div class="divider" role="separator"><span>or</span></div>
+        <button id="btn-show-join" class="btn btn-secondary btn-large" onclick="showJoinSection()" aria-label="Join an existing compass pairing">
           Join your partner
         </button>
       </div>
 
       <!-- Join section (shown when "Join" tapped) -->
       <div id="join-section" class="pair-section hidden">
-        <p class="join-label">Enter your partner's code</p>
+        <label for="join-code" class="join-label">Enter your partner's code</label>
         <input
           type="text"
           id="join-code"
@@ -77,16 +132,17 @@
           autocapitalize="characters"
           autocomplete="off"
           spellcheck="false"
+          aria-label="8-character pairing code"
         >
-        <button id="btn-join" class="btn btn-primary btn-large" onclick="joinCompass()">
+        <button id="btn-join" class="btn btn-primary btn-large" onclick="joinCompass()" aria-label="Connect to partner">
           Connect
         </button>
-        <button class="btn btn-text" onclick="showPairButtons()">Back</button>
+        <button class="btn btn-text" onclick="showPairButtons()" aria-label="Go back to pairing options">Back</button>
       </div>
 
       <!-- Waiting section (shown after creating) -->
-      <div id="waiting-section" class="pair-section hidden">
-        <div class="pulse-heart">
+      <div id="waiting-section" class="pair-section hidden" role="status">
+        <div class="pulse-heart" aria-hidden="true">
           <svg viewBox="0 0 60 60" width="60" height="60">
             <path d="M30,12 C24,0 12,0 12,12 C12,28 30,40 30,40 C30,40 48,28 48,12 C48,0 36,0 30,12Z" fill="#FF69B4"/>
           </svg>
@@ -94,15 +150,15 @@
         <p class="waiting-label">Share this code with your partner</p>
         <div class="code-display">
           <span id="waiting-code" class="code-text"></span>
-          <button class="btn-copy" onclick="copyCode()" title="Copy code">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2">
+          <button class="btn-copy" onclick="copyCode()" aria-label="Copy pairing code to clipboard">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2" aria-hidden="true">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
             </svg>
           </button>
         </div>
         <p class="waiting-status">Waiting for your partner to connect...</p>
-        <button class="btn btn-text" onclick="cancelWaiting()">Cancel</button>
+        <button class="btn btn-text" onclick="cancelWaiting()" aria-label="Cancel and go back">Cancel</button>
       </div>
     </div>
   </div>
@@ -110,35 +166,47 @@
   <!-- ============================================ -->
   <!-- Screen 2: Compass -->
   <!-- ============================================ -->
-  <div id="screen-compass" class="screen hidden">
+  <div id="screen-compass" class="screen hidden" role="main" aria-label="Compass screen">
     <!-- Header -->
     <div class="compass-header">
       <div class="sharing-indicator">
-        <span id="sharing-dot" class="dot dot-green"></span>
+        <span id="sharing-dot" class="dot dot-green" aria-hidden="true"></span>
         <span id="sharing-label" class="sharing-text">Sharing</span>
       </div>
-      <button class="btn-icon" onclick="showScreen('settings')" title="Settings">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2">
+      <!-- Partner online status -->
+      <div class="partner-status" id="partner-status" aria-live="polite">
+        <span id="partner-dot" class="dot dot-gray" aria-hidden="true"></span>
+        <span id="partner-status-text" class="partner-status-text">Partner</span>
+      </div>
+      <button class="btn-icon" onclick="showScreen('settings')" aria-label="Open settings">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2" aria-hidden="true">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
       </button>
     </div>
 
+    <!-- Loading skeleton (shown while compass initializes) -->
+    <div id="compass-loading" class="compass-loading" role="status" aria-label="Loading compass">
+      <div class="skeleton-circle"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line short"></div>
+    </div>
+
     <!-- Compass -->
-    <div class="compass-wrapper">
+    <div class="compass-wrapper" id="compass-main" role="img" aria-label="Compass pointing toward your partner">
       <div class="compass-container">
         <div class="compass-ring">
           <!-- Tick marks -->
-          <div class="tick-marks" id="tick-marks"></div>
+          <div class="tick-marks" id="tick-marks" aria-hidden="true"></div>
           <!-- Cardinal directions -->
-          <span class="cardinal n">N</span>
-          <span class="cardinal e">E</span>
-          <span class="cardinal s">S</span>
-          <span class="cardinal w">W</span>
+          <span class="cardinal n" aria-hidden="true">N</span>
+          <span class="cardinal e" aria-hidden="true">E</span>
+          <span class="cardinal s" aria-hidden="true">S</span>
+          <span class="cardinal w" aria-hidden="true">W</span>
         </div>
         <!-- Needle -->
-        <div class="compass-needle" id="compass-needle">
+        <div class="compass-needle" id="compass-needle" aria-hidden="true">
           <svg viewBox="0 0 40 160" width="40" height="160">
             <!-- Heart tip -->
             <path d="M20,8 C16,0 8,0 8,8 C8,18 20,28 20,28 C20,28 32,18 32,8 C32,0 24,0 20,8Z" fill="#FF69B4" stroke="#C71585" stroke-width="1"/>
@@ -155,18 +223,21 @@
           </svg>
         </div>
         <!-- Center dot (heartbeat pulse) -->
-        <div class="compass-center heartbeat"></div>
+        <div class="compass-center heartbeat" aria-hidden="true"></div>
       </div>
     </div>
 
+    <!-- Screen reader compass direction announcement -->
+    <div id="compass-sr-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
     <!-- Distance display -->
-    <div class="distance-display">
+    <div class="distance-display" aria-live="polite">
       <p id="distance-text" class="distance-text">Searching for your partner...</p>
     </div>
 
     <!-- Poke button -->
-    <button id="btn-poke" class="btn-poke" onclick="sendPoke()">
-      <svg viewBox="0 0 60 60" width="36" height="36">
+    <button id="btn-poke" class="btn-poke" onclick="sendPoke()" aria-label="Send a poke to your partner">
+      <svg viewBox="0 0 60 60" width="36" height="36" aria-hidden="true">
         <path d="M30,10 C24,0 12,0 12,12 C12,28 30,42 30,42 C30,42 48,28 48,12 C48,0 36,0 30,10Z" fill="white"/>
       </svg>
       <span>Poke</span>
@@ -175,8 +246,8 @@
     <!-- Sharing toggle -->
     <div class="sharing-toggle">
       <label class="toggle-label">
-        <input type="checkbox" id="sharing-checkbox" checked onchange="toggleSharing()">
-        <span class="toggle-slider"></span>
+        <input type="checkbox" id="sharing-checkbox" checked onchange="toggleSharing()" aria-label="Toggle location sharing">
+        <span class="toggle-slider" aria-hidden="true"></span>
         <span class="toggle-text">Share my location</span>
       </label>
     </div>
@@ -185,11 +256,11 @@
   <!-- ============================================ -->
   <!-- Screen 3: Settings -->
   <!-- ============================================ -->
-  <div id="screen-settings" class="screen hidden">
+  <div id="screen-settings" class="screen hidden" role="complementary" aria-label="Settings">
     <div class="settings-container">
       <div class="settings-header">
-        <button class="btn-icon" onclick="showScreen('compass')" title="Back">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2">
+        <button class="btn-icon" onclick="showScreen('compass')" aria-label="Back to compass">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#C71585" stroke-width="2" aria-hidden="true">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
@@ -201,8 +272,8 @@
         <h3>Your Pairing Code</h3>
         <div class="code-display">
           <span id="settings-code" class="code-text"></span>
-          <button class="btn-copy" onclick="copyCode()" title="Copy code">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2">
+          <button class="btn-copy" onclick="copyCode()" aria-label="Copy pairing code to clipboard">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C71585" stroke-width="2" aria-hidden="true">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
             </svg>
@@ -213,7 +284,7 @@
 
       <div class="settings-card">
         <h3>Connection</h3>
-        <button class="btn btn-danger btn-large" onclick="unpair()">
+        <button class="btn btn-danger btn-large" onclick="unpair()" aria-label="Unpair from your partner">
           Unpair
         </button>
         <p class="settings-hint">This will disconnect you from your partner</p>

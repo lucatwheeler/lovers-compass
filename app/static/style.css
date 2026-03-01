@@ -843,3 +843,150 @@ body {
   .cardinal.s { bottom: 8px; }
   .cardinal.w { left: 10px; }
 }
+
+/* ============================================ */
+/* Partner Online Status */
+/* ============================================ */
+.partner-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.partner-status-text {
+  font-size: 12px;
+  color: #999;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot.dot-green-pulse {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 0 10px rgba(34, 197, 94, 0.8); }
+}
+
+/* ============================================ */
+/* Loading States */
+/* ============================================ */
+.compass-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  gap: 16px;
+}
+
+.compass-loading.hidden {
+  display: none;
+}
+
+.skeleton-circle {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0e0e8 25%, #f8eef2 50%, #f0e0e8 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 16px;
+  width: 180px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f0e0e8 25%, #f8eef2 50%, #f0e0e8 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-line.short {
+  width: 120px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================ */
+/* Screen Reader Only */
+/* ============================================ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================ */
+/* Accessibility: Reduced Motion */
+/* ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .compass-needle {
+    transition: none;
+  }
+
+  body {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+/* ============================================ */
+/* Accessibility: Focus Styles */
+/* ============================================ */
+.btn:focus-visible,
+.btn-icon:focus-visible,
+.btn-copy:focus-visible,
+.btn-poke:focus-visible,
+.demo-btn:focus-visible,
+.code-input:focus-visible {
+  outline: 3px solid #C71585;
+  outline-offset: 2px;
+}
+
+/* ============================================ */
+/* Accessibility: Improved Contrast */
+/* ============================================ */
+.sharing-text {
+  color: #555;
+}
+
+.waiting-status {
+  color: #666;
+}
+
+.toggle-text {
+  color: #555;
+}
+
+.settings-hint {
+  color: #777;
+}
+
+.about-version {
+  color: #888;
+}
+
+.divider span {
+  color: #888;
+}
