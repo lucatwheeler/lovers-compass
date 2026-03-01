@@ -89,12 +89,14 @@ function showScreen(name) {
 
 // ---- Pair Screen Logic ----
 function showJoinSection() {
+  var demoBtn = $("btn-demo"); if (demoBtn) demoBtn.classList.add("hidden");
   $('pair-buttons').classList.add('hidden');
   $('join-section').classList.remove('hidden');
   $('join-code').focus();
 }
 
 function showPairButtons() {
+  var demoBtn = $("btn-demo"); if (demoBtn) demoBtn.classList.remove("hidden");
   $('join-section').classList.add('hidden');
   $('pair-buttons').classList.remove('hidden');
 }
@@ -168,6 +170,7 @@ function cancelWaiting() {
   $('waiting-section').classList.add('hidden');
   $('pair-buttons').classList.remove('hidden');
   $('btn-create').disabled = false;
+  var demoBtn = $("btn-demo"); if (demoBtn) demoBtn.classList.remove("hidden");
   $('btn-create').textContent = 'Create a new compass';
 }
 
@@ -223,7 +226,7 @@ function startDemoMode() {
     var banner = document.createElement('div');
     banner.id = 'demo-banner';
     banner.className = 'demo-banner';
-    banner.textContent = '\uD83E\uDDED Demo Mode \u2014 pair with a partner to go live!';
+    banner.innerHTML = '🧭 Demo Mode — pair with a partner to go live!';
     $('screen-compass').insertBefore(banner, $('screen-compass').firstChild);
   }
 
