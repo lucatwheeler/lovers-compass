@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>LC Compass Accuracy Test</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      padding: 0 0 40px;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-bottom: 1px solid #2a2a4a;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FF69B4;
+      letter-spacing: -0.3px;
+    }
+    .header a {
+      color: #FF69B4;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border: 1px solid #FF69B4;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .header a:active { background: rgba(255, 105, 180, 0.15); }
+
+    /* ---- Sections ---- */
+    .section {
+      margin: 16px 12px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #FF69B4;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid #2a2a4a;
+      background: rgba(255, 105, 180, 0.04);
+    }
+    .section-body { padding: 16px; }
+
+    /* ---- Side by Side Compasses ---- */
+    .compass-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .compass-col {
+      flex: 1;
+      min-width: 150px;
+      max-width: 200px;
+      text-align: center;
+    }
+    .compass-col h3 {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+    .mini-compass {
+      position: relative;
+      width: 150px;
+      height: 150px;
+      margin: 0 auto;
+    }
+    .mini-ring {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid #3a3a5a;
+      background: radial-gradient(circle, #1e1e32, #14142a);
+      position: relative;
+    }
+    .mini-cardinal {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 700;
+      color: #666;
+    }
+    .mini-cardinal.n { top: 6px; left: 50%; transform: translateX(-50%); color: #FF69B4; }
+    .mini-cardinal.e { right: 8px; top: 50%; transform: translateY(-50%); }
+    .mini-cardinal.s { bottom: 6px; left: 50%; transform: translateX(-50%); }
+    .mini-cardinal.w { left: 8px; top: 50%; transform: translateY(-50%); }
+
+    .mini-needle {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 4px; height: 56px;
+      margin-top: -28px; margin-left: -2px;
+      transform-origin: 2px 28px;
+      z-index: 2;
+      will-change: transform;
+    }
+    .mini-needle .arrow-north {
+      width: 4px; height: 24px;
+      background: linear-gradient(to top, #C71585, #FF69B4);
+      border-radius: 2px 2px 0 0;
+      position: relative;
+    }
+    .mini-needle .arrow-north::before {
+      content: '';
+      position: absolute;
+      top: -6px; left: 50%;
+      transform: translateX(-50%);
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 8px solid #FF69B4;
+    }
+    .mini-needle .arrow-south {
+      width: 4px; height: 32px;
+      background: linear-gradient(to bottom, #555, #333);
+      border-radius: 0 0 2px 2px;
+    }
+    .mini-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 8px; height: 8px;
+      margin: -4px 0 0 -4px;
+      border-radius: 50%;
+      background: #FF69B4;
+      z-index: 3;
+    }
+    .compass-value {
+      margin-top: 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    /* ---- Test Results ---- */
+    .test-grid {
+      display: grid;
+      gap: 8px;
+    }
+    .test-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      background: #14142a;
+      border-radius: 10px;
+      font-size: 13px;
+    }
+    .test-label {
+      font-weight: 600;
+      color: #ccc;
+    }
+    .test-expected, .test-actual {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      text-align: right;
+      color: #888;
+    }
+    .test-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-align: center;
+      min-width: 44px;
+    }
+    .test-badge.pass {
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+    }
+    .test-badge.fail {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+    .test-summary {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .test-summary.all-pass {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .test-summary.has-fail {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    /* ---- Live Panel ---- */
+    .live-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .live-stat {
+      background: #14142a;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .live-stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .live-stat-value {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: #FF69B4;
+    }
+    .live-stat-value.neutral { color: #888; }
+    .live-diff {
+      grid-column: 1 / -1;
+      background: #14142a;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .live-diff-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .live-diff-value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .live-diff-value.aligned { color: #22c55e; }
+    .live-diff-value.misaligned { color: #ef4444; }
+
+    .no-sensor {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 380px) {
+      .mini-compass { width: 130px; height: 130px; }
+      .mini-needle { height: 48px; margin-top: -24px; }
+      .mini-needle .arrow-north { height: 20px; }
+      .mini-needle .arrow-south { height: 28px; }
+      .mini-needle { transform-origin: 2px 24px; }
+      .test-row { grid-template-columns: 1fr auto auto auto; font-size: 12px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Compass Accuracy Test</h1>
+    <a href="/">Back to LC</a>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Section 1: Side by Side Comparison           -->
+  <!-- ============================================ -->
+  <div class="section">
+    <div class="section-title">1. Side by Side Comparison</div>
+    <div class="section-body">
+      <div class="compass-row">
+        <!-- Reference compass: pure north via deviceorientation -->
+        <div class="compass-col">
+          <h3>Reference (North)</h3>
+          <div class="mini-compass">
+            <div class="mini-ring">
+              <span class="mini-cardinal n">N</span>
+              <span class="mini-cardinal e">E</span>
+              <span class="mini-cardinal s">S</span>
+              <span class="mini-cardinal w">W</span>
+            </div>
+            <div class="mini-needle" id="ref-needle">
+              <div class="arrow-north"></div>
+              <div class="arrow-south"></div>
+            </div>
+            <div class="mini-center"></div>
+          </div>
+          <div class="compass-value" id="ref-value">-- (no sensor)</div>
+        </div>
+
+        <!-- LC compass: demo mode pointing at North Pole -->
+        <div class="compass-col">
+          <h3>LC Demo (North Pole)</h3>
+          <div class="mini-compass">
+            <div class="mini-ring">
+              <span class="mini-cardinal n">N</span>
+              <span class="mini-cardinal e">E</span>
+              <span class="mini-cardinal s">S</span>
+              <span class="mini-cardinal w">W</span>
+            </div>
+            <div class="mini-needle" id="lc-needle">
+              <div class="arrow-north"></div>
+              <div class="arrow-south"></div>
+            </div>
+            <div class="mini-center"></div>
+          </div>
+          <div class="compass-value" id="lc-value">-- (waiting for GPS)</div>
+        </div>
+      </div>
+      <p style="text-align:center; margin-top:12px; font-size:12px; color:#666;">
+        Both needles should point the same direction when your partner is at the North Pole.<br>
+        Requires device orientation sensor + GPS.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Section 2: Automated Bearing Tests           -->
+  <!-- ============================================ -->
+  <div class="section">
+    <div class="section-title">2. Bearing Calculation Tests</div>
+    <div class="section-body">
+      <div class="test-grid" id="bearing-tests"></div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Section 3: Heading Compensation Tests        -->
+  <!-- ============================================ -->
+  <div class="section">
+    <div class="section-title">3. Heading Compensation Tests</div>
+    <div class="section-body">
+      <div class="test-grid" id="heading-tests"></div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- Section 4: Live Comparison                   -->
+  <!-- ============================================ -->
+  <div class="section">
+    <div class="section-title">4. Live Device Comparison</div>
+    <div class="section-body" id="live-panel">
+      <div class="no-sensor" id="no-sensor-msg">Waiting for device orientation sensor...</div>
+      <div class="live-grid" id="live-grid" style="display:none;">
+        <div class="live-stat">
+          <div class="live-stat-label">Device Heading</div>
+          <div class="live-stat-value" id="live-heading">--</div>
+        </div>
+        <div class="live-stat">
+          <div class="live-stat-label">Bearing to Partner</div>
+          <div class="live-stat-value" id="live-bearing">--</div>
+        </div>
+        <div class="live-stat">
+          <div class="live-stat-label">Needle Rotation</div>
+          <div class="live-stat-value" id="live-rotation">--</div>
+        </div>
+        <div class="live-stat">
+          <div class="live-stat-label">Ref Compass</div>
+          <div class="live-stat-value" id="live-ref">--</div>
+        </div>
+        <div class="live-diff">
+          <div class="live-diff-label">LC vs Reference (partner @ North Pole)</div>
+          <div class="live-diff-value neutral" id="live-diff">Waiting for data...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================================ */
+/* Copied from app.js — self-contained math     */
+/* ============================================ */
+function toRad(deg) {
+  return (deg * Math.PI) / 180;
+}
+
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  var dLon = toRad(lon2 - lon1);
+  var la1 = toRad(lat1);
+  var la2 = toRad(lat2);
+
+  var y = Math.sin(dLon) * Math.cos(la2);
+  var x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+
+  var brng = Math.atan2(y, x);
+  return ((brng * 180) / Math.PI + 360) % 360;
+}
+
+/* ============================================ */
+/* Test Utilities                               */
+/* ============================================ */
+var TOLERANCE = 5; // degrees
+
+function angleDiff(a, b) {
+  var d = ((a - b) % 360 + 360) % 360;
+  return d > 180 ? d - 360 : d;
+}
+
+function isPass(actual, expected) {
+  return Math.abs(angleDiff(actual, expected)) <= TOLERANCE;
+}
+
+function formatDeg(v) {
+  return v.toFixed(1) + '\u00B0';
+}
+
+function renderTestRow(container, label, expected, actual) {
+  var pass = isPass(actual, expected);
+  var row = document.createElement('div');
+  row.className = 'test-row';
+  row.innerHTML =
+    '<div class="test-label">' + label + '</div>' +
+    '<div class="test-expected">exp: ' + formatDeg(expected) + '</div>' +
+    '<div class="test-actual">got: ' + formatDeg(actual) + '</div>' +
+    '<div class="test-badge ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'PASS' : 'FAIL') + '</div>';
+  container.appendChild(row);
+  return pass;
+}
+
+function renderSummary(container, passCount, total) {
+  var allPass = passCount === total;
+  var summary = document.createElement('div');
+  summary.className = 'test-summary ' + (allPass ? 'all-pass' : 'has-fail');
+  summary.textContent = passCount + '/' + total + ' tests passed' + (allPass ? ' — All correct!' : '');
+  container.appendChild(summary);
+}
+
+/* ============================================ */
+/* Section 2: Bearing Tests                     */
+/* ============================================ */
+function runBearingTests() {
+  var container = document.getElementById('bearing-tests');
+  container.innerHTML = '';
+
+  var myLat = 34.05, myLng = -118.25;
+  var tests = [
+    { label: 'North Pole (90, 0)',      pLat: 90,    pLng: 0,       expected: 0   },
+    { label: 'East (34.05, -117.25)',   pLat: 34.05, pLng: -117.25, expected: 90  },
+    { label: 'South (33.05, -118.25)',  pLat: 33.05, pLng: -118.25, expected: 180 },
+    { label: 'West (34.05, -119.25)',   pLat: 34.05, pLng: -119.25, expected: 270 },
+  ];
+
+  var passCount = 0;
+  tests.forEach(function(t) {
+    var actual = calculateBearing(myLat, myLng, t.pLat, t.pLng);
+    if (renderTestRow(container, t.label, t.expected, actual)) passCount++;
+  });
+
+  renderSummary(container, passCount, tests.length);
+}
+
+/* ============================================ */
+/* Section 3: Heading Compensation Tests        */
+/* ============================================ */
+function runHeadingTests() {
+  var container = document.getElementById('heading-tests');
+  container.innerHTML = '';
+
+  // Fixed bearing to partner (north pole from LA ≈ 0°)
+  var myLat = 34.05, myLng = -118.25;
+  var pLat = 90, pLng = 0;
+  var bearing = calculateBearing(myLat, myLng, pLat, pLng);
+
+  // LC formula: needleRotation = bearing - deviceHeading
+  var tests = [
+    { heading: 0,   label: 'Facing North (0°)' },
+    { heading: 90,  label: 'Facing East (90°)' },
+    { heading: 180, label: 'Facing South (180°)' },
+    { heading: 270, label: 'Facing West (270°)' },
+  ];
+
+  var passCount = 0;
+  tests.forEach(function(t) {
+    var needleRotation = bearing - t.heading;
+    var expected = ((bearing - t.heading) % 360 + 360) % 360;
+    var actual = ((needleRotation) % 360 + 360) % 360;
+    if (renderTestRow(container, t.label, expected, actual)) passCount++;
+  });
+
+  renderSummary(container, passCount, tests.length);
+}
+
+/* ============================================ */
+/* Section 1 & 4: Live Device Orientation       */
+/* ============================================ */
+var liveState = {
+  heading: null,
+  myLat: null,
+  myLng: null,
+  partnerLat: 90,
+  partnerLng: 0,
+  sensorActive: false,
+  refCurrentRotation: 0,
+  lcCurrentRotation: 0,
+};
+
+function getHeadingFromEvent(event) {
+  if (event.webkitCompassHeading !== undefined) {
+    return event.webkitCompassHeading;
+  } else if (event.alpha !== null) {
+    return (360 - event.alpha) % 360;
+  }
+  return null;
+}
+
+function handleLiveOrientation(event) {
+  var heading = getHeadingFromEvent(event);
+  if (heading === null) return;
+
+  liveState.heading = heading;
+  if (!liveState.sensorActive) {
+    liveState.sensorActive = true;
+    document.getElementById('no-sensor-msg').style.display = 'none';
+    document.getElementById('live-grid').style.display = '';
+  }
+
+  updateVisuals();
+}
+
+function updateVisuals() {
+  var heading = liveState.heading;
+
+  // --- Reference compass: needle points north ---
+  // When heading=0, needle at 0°. When heading=90 (facing east), north is to the left, needle = -90.
+  var refRotation = -heading;
+
+  // Smooth the reference needle
+  var refTarget = refRotation;
+  var refNorm = ((liveState.refCurrentRotation % 360) + 360) % 360;
+  var targetNorm = ((refTarget % 360) + 360) % 360;
+  var refDiff = targetNorm - refNorm;
+  if (refDiff > 180) refDiff -= 360;
+  if (refDiff < -180) refDiff += 360;
+  liveState.refCurrentRotation += refDiff;
+
+  document.getElementById('ref-needle').style.transform = 'rotate(' + liveState.refCurrentRotation + 'deg)';
+  document.getElementById('ref-value').textContent = formatDeg(((heading % 360) + 360) % 360);
+
+  // --- LC compass: demo mode, partner at North Pole ---
+  if (liveState.myLat !== null) {
+    var bearing = calculateBearing(liveState.myLat, liveState.myLng, liveState.partnerLat, liveState.partnerLng);
+    var lcRotation = bearing - heading;
+
+    // Smooth the LC needle
+    var lcTarget = lcRotation;
+    var lcNorm = ((liveState.lcCurrentRotation % 360) + 360) % 360;
+    var lcTargetNorm = ((lcTarget % 360) + 360) % 360;
+    var lcDiff = lcTargetNorm - lcNorm;
+    if (lcDiff > 180) lcDiff -= 360;
+    if (lcDiff < -180) lcDiff += 360;
+    liveState.lcCurrentRotation += lcDiff;
+
+    document.getElementById('lc-needle').style.transform = 'rotate(' + liveState.lcCurrentRotation + 'deg)';
+    document.getElementById('lc-value').textContent = 'bearing: ' + formatDeg(bearing);
+
+    // --- Live panel (Section 4) ---
+    document.getElementById('live-heading').textContent = formatDeg(heading);
+    document.getElementById('live-bearing').textContent = formatDeg(bearing);
+    document.getElementById('live-rotation').textContent = formatDeg(((lcRotation % 360) + 360) % 360);
+    document.getElementById('live-ref').textContent = formatDeg(((refRotation % 360) + 360) % 360);
+
+    // Diff: compare LC needle angle vs reference needle angle
+    // Both should be the same if partner is at true north
+    var diff = Math.abs(angleDiff(lcRotation, refRotation));
+    var diffEl = document.getElementById('live-diff');
+    if (diff <= 5) {
+      diffEl.textContent = 'ALIGNED — diff: ' + diff.toFixed(1) + '\u00B0';
+      diffEl.className = 'live-diff-value aligned';
+    } else {
+      diffEl.textContent = 'MISALIGNED — diff: ' + diff.toFixed(1) + '\u00B0';
+      diffEl.className = 'live-diff-value misaligned';
+    }
+  } else {
+    document.getElementById('lc-value').textContent = 'Waiting for GPS...';
+    document.getElementById('live-heading').textContent = formatDeg(heading);
+    document.getElementById('live-bearing').textContent = '--';
+    document.getElementById('live-rotation').textContent = '--';
+    document.getElementById('live-ref').textContent = formatDeg(((refRotation % 360) + 360) % 360);
+  }
+}
+
+/* ============================================ */
+/* GPS Tracking                                 */
+/* ============================================ */
+function startGPS() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(
+    function(pos) {
+      liveState.myLat = pos.coords.latitude;
+      liveState.myLng = pos.coords.longitude;
+      updateVisuals();
+    },
+    function() {},
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+  );
+}
+
+/* ============================================ */
+/* Init                                         */
+/* ============================================ */
+function initTests() {
+  runBearingTests();
+  runHeadingTests();
+
+  // Start live sensors
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ — need user gesture
+    var btn = document.createElement('button');
+    btn.textContent = 'Enable Compass Sensor';
+    btn.style.cssText = 'display:block;margin:12px auto;padding:12px 24px;background:linear-gradient(135deg,#FF69B4,#C71585);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;';
+    btn.onclick = function() {
+      DeviceOrientationEvent.requestPermission().then(function(response) {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientationabsolute', handleLiveOrientation, true);
+          window.addEventListener('deviceorientation', handleLiveOrientation, true);
+          btn.remove();
+        }
+      });
+    };
+    document.getElementById('live-panel').insertBefore(btn, document.getElementById('live-panel').firstChild);
+  } else {
+    window.addEventListener('deviceorientationabsolute', handleLiveOrientation, true);
+    window.addEventListener('deviceorientation', handleLiveOrientation, true);
+  }
+
+  startGPS();
+
+  // Timeout: if no sensor after 5s, show message
+  setTimeout(function() {
+    if (!liveState.sensorActive) {
+      document.getElementById('no-sensor-msg').textContent = 'No orientation sensor detected. Live comparison requires a mobile device with compass.';
+      document.getElementById('ref-value').textContent = 'No sensor';
+    }
+  }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', initTests);
+</script>
+</body>
+</html>

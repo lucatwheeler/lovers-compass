@@ -127,8 +127,8 @@ PAIR_RATE_LIMIT = "5/minute"  # 5 requests per minute per IP
 
 
 # For /updateLocation endpoint
-# Device-based: 1 request every 10 seconds = 6 per minute
-UPDATE_LOCATION_DEVICE_LIMIT = "6/minute"
+# Device-based: client sends every 3s (20/min), allow 24/min for buffer
+UPDATE_LOCATION_DEVICE_LIMIT = "24/minute"
 # IP-based safety net: 60 requests per minute per IP
 UPDATE_LOCATION_IP_LIMIT = "60/minute"
 

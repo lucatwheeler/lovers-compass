@@ -96,6 +96,11 @@
     </div>
   </div>
 
+  <!-- HTTPS warning -->
+  <div id="https-warning" class="https-warning hidden" role="alert">
+    Compass requires HTTPS. Some features may not work on this connection.
+  </div>
+
   <!-- ============================================ -->
   <!-- Screen 1: Pair -->
   <!-- ============================================ -->
@@ -197,13 +202,14 @@
     <div class="compass-wrapper" id="compass-main" role="img" aria-label="Compass pointing toward your partner">
       <div class="compass-container">
         <div class="compass-ring">
-          <!-- Tick marks -->
-          <div class="tick-marks" id="tick-marks" aria-hidden="true"></div>
-          <!-- Cardinal directions -->
-          <span class="cardinal n" aria-hidden="true">N</span>
-          <span class="cardinal e" aria-hidden="true">E</span>
-          <span class="cardinal s" aria-hidden="true">S</span>
-          <span class="cardinal w" aria-hidden="true">W</span>
+          <!-- Cardinal directions + tick marks (rotate with heading) -->
+          <div class="compass-cardinals" id="compass-cardinals" aria-hidden="true">
+            <div class="tick-marks" id="tick-marks"></div>
+            <span class="cardinal n">N</span>
+            <span class="cardinal e">E</span>
+            <span class="cardinal s">S</span>
+            <span class="cardinal w">W</span>
+          </div>
         </div>
         <!-- Needle -->
         <div class="compass-needle" id="compass-needle" aria-hidden="true">
@@ -227,21 +233,30 @@
       </div>
     </div>
 
-    <!-- Screen reader compass direction announcement -->
-    <div id="compass-sr-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-
-    <!-- Distance display -->
-    <div class="distance-display" aria-live="polite">
+    <!-- Direction & distance info -->
+    <div class="compass-info">
+      <p id="direction-text" class="direction-text"></p>
       <p id="distance-text" class="distance-text">Searching for your partner...</p>
     </div>
 
+    <!-- Screen reader compass direction announcement -->
+    <div id="compass-sr-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Compass status hints -->
+    <p id="heading-hint" class="compass-hint hidden">Point phone north for best results</p>
+    <button id="btn-enable-compass" class="btn btn-secondary btn-enable-compass hidden" onclick="enableCompass()">Enable Compass</button>
+    <p id="gps-stale-text" class="stale-text hidden">Acquiring GPS...</p>
+    <p id="partner-stale-text" class="stale-text hidden">Partner location updating...</p>
+
     <!-- Poke button -->
-    <button id="btn-poke" class="btn-poke" onclick="sendPoke()" aria-label="Send a poke to your partner">
-      <svg viewBox="0 0 60 60" width="36" height="36" aria-hidden="true">
-        <path d="M30,10 C24,0 12,0 12,12 C12,28 30,42 30,42 C30,42 48,28 48,12 C48,0 36,0 30,10Z" fill="white"/>
-      </svg>
-      <span>Poke</span>
-    </button>
+    <div class="poke-section">
+      <button id="btn-poke" class="btn-poke" onclick="sendPoke()" aria-label="Send a poke to your partner">
+        <svg viewBox="0 0 60 60" width="36" height="36" aria-hidden="true">
+          <path d="M30,10 C24,0 12,0 12,12 C12,28 30,42 30,42 C30,42 48,28 48,12 C48,0 36,0 30,10Z" fill="white"/>
+        </svg>
+        <span>Poke</span>
+      </button>
+    </div>
 
     <!-- Sharing toggle -->
     <div class="sharing-toggle">
@@ -251,6 +266,9 @@
         <span class="toggle-text">Share my location</span>
       </label>
     </div>
+
+    <!-- Debug overlay (triple-tap compass to toggle) -->
+    <div id="debug-overlay" class="debug-overlay hidden"></div>
   </div>
 
   <!-- ============================================ -->

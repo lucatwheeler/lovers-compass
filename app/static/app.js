@@ -3,8 +3,8 @@
 /* ============================================ */
 
 // ---- Constants ----
-const UPDATE_INTERVAL = 5000;   // Send location every 5s
-const POLL_INTERVAL = 3000;     // Poll partner location every 3s
+const UPDATE_INTERVAL = 3000;   // Send location every 3s
+const POLL_INTERVAL = 2000;     // Poll partner location every 2s
 const POKE_POLL_INTERVAL = 5000;// Poll pokes every 5s
 const WAIT_POLL_INTERVAL = 3000;// Poll while waiting for partner
 
@@ -21,6 +21,8 @@ const state = {
   partnerStaleness: null,
   deviceHeading: null,
   currentRotation: 0,
+  targetRotation: 0,
+  currentHeading: 0,
   watchId: null,
   updateTimer: null,
   pollTimer: null,
@@ -31,6 +33,11 @@ const state = {
   pokeQueue: [],
   networkRetryCount: 0,
   lastSrDirection: null,
+  lastGPSUpdate: null,
+  lastPartnerPoll: null,
+  headingCheckTimer: null,
+  debugVisible: false,
+  staleCheckTimer: null,
 };
 
 // ---- DOM References ----
@@ -50,9 +57,8 @@ function init() {
   if (localStorage.getItem('lc_demo_mode') === 'true') {
     startDemoMode();
   } else if (state.coupleId) {
-    showScreen('compass');
-    showCompassLoading(true);
-    startCompass();
+    // Validate stored couple_id against backend before showing compass
+    validateAndReconnect();
   } else {
     showScreen('pair');
     injectDemoButton();
@@ -67,6 +73,7 @@ function init() {
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
   updateNetworkUI();
+  checkHttps();
 
   // Dismiss splash screen
   dismissSplash();
@@ -109,6 +116,17 @@ function showScreen(name) {
     $(id).classList.add('hidden');
   });
   $('screen-' + name).classList.remove('hidden');
+
+  // Reset pair sub-sections to avoid overlap when returning to pair screen
+  if (name === 'pair') {
+    $('join-section').classList.add('hidden');
+    $('waiting-section').classList.add('hidden');
+    $('pair-buttons').classList.remove('hidden');
+    var demoBtn = $('btn-demo'); if (demoBtn) demoBtn.classList.remove('hidden');
+    $('btn-create').disabled = false;
+    $('btn-create').textContent = 'Create a new compass';
+    $('join-code').value = '';
+  }
 
   if (name === 'settings') {
     $('settings-code').textContent = state.coupleId || '';
@@ -247,8 +265,8 @@ async function joinCompass() {
 // ---- Demo Mode ----
 function startDemoMode() {
   window.demoMode = true;
-  window.demoPartnerLat = 34.1341;
-  window.demoPartnerLng = -118.3215;
+  window.demoPartnerLat = 90.0;
+  window.demoPartnerLng = 0.0;
   localStorage.setItem('lc_device_id', 'DEMO-DEVICE');
   localStorage.setItem('lc_demo_mode', 'true');
 
@@ -258,7 +276,7 @@ function startDemoMode() {
     banner.id = 'demo-banner';
     banner.className = 'demo-banner';
     banner.setAttribute('role', 'status');
-    banner.innerHTML = '&#x2764;&#xFE0F; Demo Mode — pair with a partner to go live!';
+    banner.innerHTML = '❤️ Heart points North (demo)';
     $('screen-compass').insertBefore(banner, $('screen-compass').firstChild);
   }
 
@@ -295,6 +313,9 @@ function startCompass() {
   startPartnerPolling();
   startPokePolling();
   startDeviceOrientation();
+  startNeedleAnimation();
+  startStaleCheck();
+  setupDebugToggle();
   updateSharingUI();
 }
 
@@ -307,6 +328,18 @@ function stopCompass() {
   if (state.pokePollTimer) {
     clearInterval(state.pokePollTimer);
     state.pokePollTimer = null;
+  }
+  if (_needleRAF) {
+    cancelAnimationFrame(_needleRAF);
+    _needleRAF = null;
+  }
+  if (state.headingCheckTimer) {
+    clearTimeout(state.headingCheckTimer);
+    state.headingCheckTimer = null;
+  }
+  if (state.staleCheckTimer) {
+    clearInterval(state.staleCheckTimer);
+    state.staleCheckTimer = null;
   }
 }
 
@@ -322,7 +355,10 @@ function startLocationTracking() {
     function (pos) {
       state.myLat = pos.coords.latitude;
       state.myLng = pos.coords.longitude;
+      state.lastGPSUpdate = Date.now();
       hideGpsError();
+      // Recalculate compass on every GPS update
+      updateCompassDisplay();
     },
     function (err) {
       if (err.code === 1) {
@@ -336,7 +372,7 @@ function startLocationTracking() {
         showGpsError('Location Timeout', 'It\u2019s taking too long to find your location. Make sure you have a clear view of the sky or a stable connection.');
       }
     },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
 
   // Send location periodically
@@ -386,6 +422,7 @@ async function pollPartner() {
     state.partnerLat = window.demoPartnerLat;
     state.partnerLng = window.demoPartnerLng;
     state.partnerStaleness = 0;
+    state.lastPartnerPoll = Date.now();
     showCompassLoading(false);
     updatePartnerStatusUI();
     updateCompassDisplay();
@@ -402,6 +439,7 @@ async function pollPartner() {
       state.partnerLat = result.latitude;
       state.partnerLng = result.longitude;
       state.partnerStaleness = result.staleness_seconds || 0;
+      state.lastPartnerPoll = Date.now();
       state.networkRetryCount = 0;
       showCompassLoading(false);
       updatePartnerStatusUI();
@@ -467,9 +505,19 @@ function updateCompassDisplay() {
     needleBearing = bearing - state.deviceHeading;
   }
 
+  console.log('[Compass] bearing:', bearing.toFixed(1), 'heading:', state.deviceHeading, 'rotation:', needleBearing.toFixed(1));
+
   setNeedleRotation(needleBearing);
   updateDistanceText(distance);
+
+  // Update cardinal direction text
+  var directions = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
+  var dirIndex = Math.round(bearing / 45) % 8;
+  var dirEl = $('direction-text');
+  if (dirEl) dirEl.textContent = 'Your partner is ' + directions[dirIndex];
+
   announceDirection(bearing, distance);
+  updateDebugOverlay();
 }
 
 function announceDirection(bearing, distKm) {
@@ -501,17 +549,56 @@ function setNeedleRotation(targetDeg) {
   // Normalize to 0-360
   targetDeg = ((targetDeg % 360) + 360) % 360;
 
-  // Find shortest rotation path
-  var currentNorm = ((state.currentRotation % 360) + 360) % 360;
+  // Find shortest rotation path from current target
+  var currentNorm = ((state.targetRotation % 360) + 360) % 360;
   var diff = targetDeg - currentNorm;
   if (diff > 180) diff -= 360;
   if (diff < -180) diff += 360;
 
-  state.currentRotation += diff;
-  var needle = $('compass-needle');
-  if (needle) {
-    needle.style.transform = 'rotate(' + state.currentRotation + 'deg)';
+  state.targetRotation += diff;
+}
+
+// ---- Smooth Needle Animation Loop ----
+var _needleRAF = null;
+function startNeedleAnimation() {
+  if (_needleRAF) return;
+  function animate() {
+    // Lerp needle rotation
+    var diff = state.targetRotation - state.currentRotation;
+    if (Math.abs(diff) > 0.5) {
+      var step = diff * 0.2;
+      if (Math.abs(step) > 10) step = Math.sign(step) * 10;
+      state.currentRotation += step;
+    } else {
+      state.currentRotation = state.targetRotation;
+    }
+    var needle = $('compass-needle');
+    if (needle) {
+      needle.style.transform = 'rotate(' + state.currentRotation + 'deg)';
+    }
+
+    // Lerp heading for cardinal labels (smooth counter-rotation)
+    if (state.deviceHeading !== null) {
+      var targetH = state.deviceHeading;
+      // Find shortest path
+      var hDiff = targetH - ((state.currentHeading % 360) + 360) % 360;
+      if (hDiff > 180) hDiff -= 360;
+      if (hDiff < -180) hDiff += 360;
+      var hStep = hDiff * 0.15;
+      if (Math.abs(hDiff) > 0.5) {
+        state.currentHeading += hStep;
+      } else {
+        state.currentHeading = targetH;
+      }
+    }
+    var cardinals = $('compass-cardinals');
+    if (cardinals) {
+      cardinals.style.transform = 'rotate(' + (-state.currentHeading) + 'deg)';
+    }
+
+    _needleRAF = requestAnimationFrame(animate);
   }
+  _needleRAF = requestAnimationFrame(animate);
 }
 
 function updateDistanceText(distKm) {
@@ -563,31 +650,17 @@ function toRad(deg) {
 
 // ---- Device Orientation ----
 function startDeviceOrientation() {
-  // iOS 13+ requires permission
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // Will request on first user interaction
-    document.addEventListener(
-      'click',
-      function requestOrientation() {
-        DeviceOrientationEvent.requestPermission()
-          .then(function (response) {
-            if (response === 'granted') {
-              window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-              window.addEventListener('deviceorientation', handleOrientation, true);
-            }
-          })
-          .catch(function () {});
-        document.removeEventListener('click', requestOrientation);
-      },
-      { once: true }
-    );
+    // iOS 13+ — try requesting immediately (works if called from user gesture)
+    requestOrientationPermission();
   } else {
     window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     window.addEventListener('deviceorientation', handleOrientation, true);
   }
+  // If no heading after 3 seconds, show enable button
+  startHeadingCheck();
 }
 
-var _orientationRAF = null;
 function handleOrientation(event) {
   var heading = null;
 
@@ -605,13 +678,11 @@ function handleOrientation(event) {
 
   if (heading !== null) {
     state.deviceHeading = heading;
-    // Batch orientation updates to next animation frame to avoid jitter
-    if (!_orientationRAF) {
-      _orientationRAF = requestAnimationFrame(function () {
-        _orientationRAF = null;
-        updateCompassDisplay();
-      });
-    }
+    hideEnableCompassButton();
+    var hint = $('heading-hint');
+    if (hint) hint.classList.add('hidden');
+    // Update target on every heading change; rAF loop handles smooth rendering
+    updateCompassDisplay();
   }
 }
 
@@ -744,7 +815,12 @@ async function unpair() {
   state.partnerLng = null;
   state.isSharing = true;
   state.currentRotation = 0;
+  state.targetRotation = 0;
+  state.currentHeading = 0;
   state.pokeQueue = [];
+  state.lastGPSUpdate = null;
+  state.lastPartnerPoll = null;
+  state.debugVisible = false;
 
   localStorage.removeItem('couple_id');
   localStorage.removeItem('role');
@@ -908,5 +984,171 @@ async function flushPokeQueue() {
   if (state.pokeQueue.length === 0) return;
 }
 
+// ---- Orientation Permission ----
+function requestOrientationPermission() {
+  DeviceOrientationEvent.requestPermission()
+    .then(function (response) {
+      if (response === 'granted') {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
+    })
+    .catch(function () {
+      // Requires user gesture — show enable button
+      showEnableCompassButton();
+    });
+}
+
+function startHeadingCheck() {
+  if (state.headingCheckTimer) clearTimeout(state.headingCheckTimer);
+  state.headingCheckTimer = setTimeout(function () {
+    if (state.deviceHeading === null) {
+      showEnableCompassButton();
+    }
+  }, 3000);
+}
+
+function showEnableCompassButton() {
+  // Only show on iOS where permission can be re-requested
+  if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') return;
+  var btn = $('btn-enable-compass');
+  if (btn) btn.classList.remove('hidden');
+}
+
+function hideEnableCompassButton() {
+  var btn = $('btn-enable-compass');
+  if (btn) btn.classList.add('hidden');
+}
+
+function enableCompass() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(function (response) {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          hideEnableCompassButton();
+        }
+      })
+      .catch(function () {
+        showToast('Could not enable compass. Check your settings.');
+      });
+  }
+}
+
+// ---- HTTPS Check ----
+function checkHttps() {
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    var warning = $('https-warning');
+    if (warning) warning.classList.remove('hidden');
+  }
+}
+
+// ---- Debug Overlay ----
+var _debugTaps = 0;
+var _debugTapTimer = null;
+
+function setupDebugToggle() {
+  var wrapper = $('compass-main');
+  if (!wrapper || wrapper._debugSetup) return;
+  wrapper._debugSetup = true;
+  wrapper.addEventListener('click', function () {
+    _debugTaps++;
+    if (_debugTapTimer) clearTimeout(_debugTapTimer);
+    if (_debugTaps >= 3) {
+      _debugTaps = 0;
+      toggleDebugOverlay();
+    } else {
+      _debugTapTimer = setTimeout(function () { _debugTaps = 0; }, 500);
+    }
+  });
+}
+
+function toggleDebugOverlay() {
+  state.debugVisible = !state.debugVisible;
+  var overlay = $('debug-overlay');
+  if (overlay) {
+    overlay.classList.toggle('hidden', !state.debugVisible);
+    if (state.debugVisible) updateDebugOverlay();
+  }
+}
+
+function updateDebugOverlay() {
+  if (!state.debugVisible) return;
+  var overlay = $('debug-overlay');
+  if (!overlay) return;
+  var bearing = (state.myLat !== null && state.partnerLat !== null)
+    ? calculateBearing(state.myLat, state.myLng, state.partnerLat, state.partnerLng).toFixed(1)
+    : 'N/A';
+
+  overlay.textContent =
+    'myLat: ' + (state.myLat !== null ? state.myLat.toFixed(6) : 'null') + '\n' +
+    'myLng: ' + (state.myLng !== null ? state.myLng.toFixed(6) : 'null') + '\n' +
+    'pLat: ' + (state.partnerLat !== null ? state.partnerLat.toFixed(6) : 'null') + '\n' +
+    'pLng: ' + (state.partnerLng !== null ? state.partnerLng.toFixed(6) : 'null') + '\n' +
+    'bearing: ' + bearing + '\n' +
+    'heading: ' + (state.deviceHeading !== null ? state.deviceHeading.toFixed(1) : 'null') + '\n' +
+    'needle: ' + state.currentRotation.toFixed(1) + '\n' +
+    'lastGPS: ' + (state.lastGPSUpdate ? new Date(state.lastGPSUpdate).toLocaleTimeString() : 'never') + '\n' +
+    'lastPoll: ' + (state.lastPartnerPoll ? new Date(state.lastPartnerPoll).toLocaleTimeString() : 'never');
+}
+
+// ---- Stale Data Check ----
+function startStaleCheck() {
+  if (state.staleCheckTimer) return;
+  state.staleCheckTimer = setInterval(checkStaleData, 2000);
+}
+
+function checkStaleData() {
+  var now = Date.now();
+  var gpsStale = $('gps-stale-text');
+  var partnerStale = $('partner-stale-text');
+  var hint = $('heading-hint');
+
+  if (gpsStale) {
+    var gpsIsStale = state.lastGPSUpdate !== null && (now - state.lastGPSUpdate > 10000);
+    gpsStale.classList.toggle('hidden', !gpsIsStale);
+  }
+
+  if (partnerStale) {
+    var partnerIsStale = state.lastPartnerPoll !== null && (now - state.lastPartnerPoll > 10000);
+    partnerStale.classList.toggle('hidden', !partnerIsStale);
+  }
+
+  if (hint) {
+    hint.classList.toggle('hidden', state.deviceHeading !== null);
+  }
+
+  updateDebugOverlay();
+}
+
 // ---- Start ----
+
+// ---- Reconnect Validation ----
+async function validateAndReconnect() {
+  showScreen('compass');
+  showCompassLoading(true);
+  try {
+    var result = await apiCall(
+      'GET',
+      '/partnerLocation?couple_id=' + state.coupleId + '&device_id=' + state.deviceId
+    );
+    // Check if the response indicates a valid couple
+    if (result.detail || result.error) {
+      throw new Error('Invalid couple');
+    }
+    // Valid - start compass
+    startCompass();
+  } catch (e) {
+    // Couple no longer exists - clear and show pair screen
+    console.log('Stored couple_id is stale, clearing...');
+    state.coupleId = null;
+    state.role = null;
+    localStorage.removeItem('couple_id');
+    localStorage.removeItem('role');
+    showScreen('pair');
+    injectDemoButton();
+    showToast('Your previous session expired. Please pair again.');
+  }
+}
 document.addEventListener('DOMContentLoaded', init);

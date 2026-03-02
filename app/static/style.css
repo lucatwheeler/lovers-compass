@@ -335,7 +335,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 10px 0;
+  padding: 16px 0 8px;
 }
 
 .compass-container {
@@ -348,25 +348,47 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  border: 3px solid #FFB6C1;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.95) 0%, rgba(255,240,245,0.8) 60%, rgba(255,182,193,0.2) 100%);
+  border: 2px solid rgba(200, 160, 140, 0.4);
+  background: radial-gradient(circle at center, rgba(255,255,255,0.97) 0%, rgba(255,245,248,0.9) 50%, rgba(255,228,235,0.4) 100%);
   position: relative;
   box-shadow:
-    0 4px 24px rgba(255, 105, 180, 0.2),
-    inset 0 0 40px rgba(255, 182, 193, 0.15);
+    0 0 0 1px rgba(210, 175, 155, 0.25),
+    0 0 0 3px rgba(200, 160, 140, 0.12),
+    0 0 0 4px rgba(210, 175, 155, 0.08),
+    0 8px 32px rgba(199, 21, 133, 0.12),
+    inset 0 0 30px rgba(255, 182, 193, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Rotating cardinal labels container */
+.compass-cardinals {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
 }
 
 .cardinal {
   position: absolute;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 15px;
   color: #C71585;
+  opacity: 0.7;
 }
 
-.cardinal.n { top: 12px; left: 50%; transform: translateX(-50%); }
-.cardinal.e { right: 14px; top: 50%; transform: translateY(-50%); }
-.cardinal.s { bottom: 12px; left: 50%; transform: translateX(-50%); }
-.cardinal.w { left: 14px; top: 50%; transform: translateY(-50%); }
+.cardinal.n {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #C71585;
+  opacity: 1;
+  font-size: 16px;
+}
+.cardinal.e { right: 12px; top: 50%; transform: translateY(-50%); }
+.cardinal.s { bottom: 10px; left: 50%; transform: translateX(-50%); }
+.cardinal.w { left: 12px; top: 50%; transform: translateY(-50%); }
 
 /* Tick marks */
 .tick-marks {
@@ -404,7 +426,6 @@ body {
   margin-top: -80px;
   margin-left: -20px;
   transform-origin: 20px 80px;
-  transition: transform 0.35s cubic-bezier(0.25, 1.4, 0.55, 1);
   z-index: 2;
   filter: drop-shadow(0 2px 4px rgba(199, 21, 133, 0.3));
   will-change: transform;
@@ -437,15 +458,23 @@ body {
   100% { transform: scale(1);   box-shadow: 0 0 8px rgba(199, 21, 133, 0.4); }
 }
 
-/* Distance display */
-.distance-display {
+/* Direction & distance info */
+.compass-info {
   text-align: center;
-  padding: 8px 24px;
+  padding: 12px 24px 4px;
+}
+
+.direction-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #C71585;
+  min-height: 28px;
+  margin-bottom: 4px;
 }
 
 .distance-text {
-  font-size: 18px;
-  color: #666;
+  font-size: 16px;
+  color: #777;
   font-weight: 500;
 }
 
@@ -457,16 +486,21 @@ body {
 .distance-close {
   color: #FF69B4;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 /* Poke button */
+.poke-section {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 8px;
+}
+
 .btn-poke {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 12px auto;
   padding: 14px 40px;
   background: linear-gradient(135deg, #FF69B4, #C71585);
   color: white;
@@ -769,13 +803,15 @@ body {
   position: sticky;
   top: 0;
   width: 100%;
-  background: #FFF3CD;
+  background: rgba(255, 243, 205, 0.9);
   color: #664D03;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 6px 16px;
   z-index: 800;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* ============================================ */
@@ -805,11 +841,11 @@ body {
 
 @media (min-height: 800px) {
   .compass-wrapper {
-    padding: 24px 0;
+    padding: 28px 0 12px;
   }
 
-  .distance-display {
-    padding: 16px 24px;
+  .compass-info {
+    padding: 16px 24px 8px;
   }
 }
 
@@ -837,11 +873,11 @@ body {
     transform-origin: 50% 94px;
   }
 
-  .cardinal { font-size: 13px; }
-  .cardinal.n { top: 8px; }
-  .cardinal.e { right: 10px; }
-  .cardinal.s { bottom: 8px; }
-  .cardinal.w { left: 10px; }
+  .cardinal { font-size: 12px; }
+  .cardinal.n { top: 6px; font-size: 13px; }
+  .cardinal.e { right: 8px; }
+  .cardinal.s { bottom: 6px; }
+  .cardinal.w { left: 8px; }
 }
 
 /* ============================================ */
@@ -989,4 +1025,87 @@ body {
 
 .divider span {
   color: #888;
+}
+
+/* ============================================ */
+/* HTTPS Warning                                */
+/* ============================================ */
+.https-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #FFF3CD;
+  color: #664D03;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  z-index: 960;
+}
+
+.https-warning.hidden {
+  display: none;
+}
+
+/* ============================================ */
+/* Compass Hints & Stale Data                   */
+/* ============================================ */
+.compass-hint {
+  text-align: center;
+  font-size: 14px;
+  color: #999;
+  font-style: italic;
+  padding: 4px 24px;
+}
+
+.compass-hint.hidden {
+  display: none;
+}
+
+.btn-enable-compass {
+  display: block;
+  margin: 8px auto;
+  padding: 10px 24px;
+  font-size: 14px;
+}
+
+.btn-enable-compass.hidden {
+  display: none;
+}
+
+.stale-text {
+  text-align: center;
+  font-size: 13px;
+  color: #e67e22;
+  font-weight: 500;
+  padding: 2px 24px;
+  animation: fade-blink 2s ease-in-out infinite;
+}
+
+.stale-text.hidden {
+  display: none;
+}
+
+/* ============================================ */
+/* Debug Overlay                                */
+/* ============================================ */
+.debug-overlay {
+  position: fixed;
+  bottom: 60px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #0f0;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  z-index: 999;
+  white-space: pre;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.debug-overlay.hidden {
+  display: none;
 }

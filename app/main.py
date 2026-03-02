@@ -411,6 +411,17 @@ def update_location(
         HTTPException: 500 if database operation fails
     """
     try:
+        # Validate that the couple_id exists and device is registered
+        composite_id = f"{payload.couple_id}:{payload.device_id}"
+        existing = db.query(models.DeviceLocation).filter(
+            models.DeviceLocation.id == composite_id
+        ).first()
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Couple not found or device not registered"
+            )
+
         # Upsert the device location
         device = crud.upsert_device_location(db, payload)
 
@@ -424,6 +435,9 @@ def update_location(
             updated_at=device.updated_at,
         )
         return JSONResponse(content=response_data.model_dump(mode='json'))
+
+    except HTTPException:
+        raise
 
     except SQLAlchemyError as e:
         logger.error(
