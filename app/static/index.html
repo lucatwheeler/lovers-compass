@@ -102,6 +102,29 @@
   </div>
 
   <!-- ============================================ -->
+  <!-- Screen 0: Permissions -->
+  <!-- ============================================ -->
+  <div id="screen-permissions" class="screen hidden" role="main" aria-label="Permission request screen">
+    <div class="pair-container">
+      <div class="app-logo" aria-hidden="true">
+        <svg viewBox="0 0 80 80" width="80" height="80">
+          <path d="M40,15 C32,0 16,0 16,15 C16,35 40,50 40,50 C40,50 64,35 64,15 C64,0 48,0 40,15Z" fill="#FF69B4"/>
+        </svg>
+      </div>
+      <h1 class="app-title">Lover's Compass</h1>
+      <p class="app-tagline">Always pointing to your heart</p>
+      <div class="permissions-info" style="margin: 1.5rem 0; text-align: left;">
+        <p style="text-align: center; color: #FFB6C1; margin-bottom: 1rem;">We need a couple permissions to get started:</p>
+        <p style="color: #ccc; margin: 0.5rem 0;">📍 Location — to point toward your partner</p>
+        <p style="color: #ccc; margin: 0.5rem 0;">🧭 Motion — for compass heading</p>
+      </div>
+      <button id="btn-enable-permissions" class="btn btn-primary btn-large" onclick="requestAllPermissions()" aria-label="Enable Lover's Compass">
+        Enable Lover's Compass 💘
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
   <!-- Screen 1: Pair -->
   <!-- ============================================ -->
   <div id="screen-pair" class="screen" role="main" aria-label="Pairing screen">
@@ -213,19 +236,48 @@
         </div>
         <!-- Needle -->
         <div class="compass-needle" id="compass-needle" aria-hidden="true">
-          <svg viewBox="0 0 40 160" width="40" height="160">
-            <!-- Heart tip -->
-            <path d="M20,8 C16,0 8,0 8,8 C8,18 20,28 20,28 C20,28 32,18 32,8 C32,0 24,0 20,8Z" fill="#FF69B4" stroke="#C71585" stroke-width="1"/>
-            <!-- Arrow shaft -->
-            <rect x="18" y="26" width="4" height="108" rx="2" fill="url(#shaft-gradient)"/>
-            <!-- Tail feathers -->
-            <path d="M20,134 L10,150 L17,141 L20,156 L23,141 L30,150 Z" fill="#FFB6C1" stroke="#C71585" stroke-width="0.5"/>
+          <svg viewBox="0 0 40 160" width="40" height="160" overflow="visible">
             <defs>
-              <linearGradient id="shaft-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#C71585"/>
-                <stop offset="100%" stop-color="#FFB6C1"/>
+              <linearGradient id="heart-grad" x1="0.5" y1="0" x2="0.5" y2="1">
+                <stop offset="0%" stop-color="#FFD0E8"/>
+                <stop offset="40%" stop-color="#FF7EB8"/>
+                <stop offset="100%" stop-color="#F05A9E"/>
+              </linearGradient>
+              <radialGradient id="heart-glow" cx="0.32" cy="0.28" r="0.35">
+                <stop offset="0%" stop-color="rgba(255,230,245,0.7)"/>
+                <stop offset="100%" stop-color="rgba(255,230,245,0)"/>
+              </radialGradient>
+              <linearGradient id="shaft-gradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#F4A0C4"/>
+                <stop offset="50%" stop-color="#F8B8D4"/>
+                <stop offset="100%" stop-color="#F0A0C0"/>
+              </linearGradient>
+              <linearGradient id="tail-grad" x1="0.5" y1="0" x2="0.5" y2="1">
+                <stop offset="0%" stop-color="#F0A0C0"/>
+                <stop offset="100%" stop-color="#D88AAE"/>
               </linearGradient>
             </defs>
+            <!-- Heart (front/top) - plush Valentine heart -->
+            <path d="M20,44 C10,34 -5,24 -5,14 C-5,2 6,-4 20,12 C34,-4 45,2 45,14 C45,24 30,34 20,44 Z"
+                  fill="url(#heart-grad)" stroke="#E86AAA" stroke-width="0.5" stroke-linejoin="round"/>
+            <!-- Heart inner glow -->
+            <path d="M20,44 C10,34 -5,24 -5,14 C-5,2 6,-4 20,12 C34,-4 45,2 45,14 C45,24 30,34 20,44 Z"
+                  fill="url(#heart-glow)"/>
+            <!-- Heart highlight (left lobe) -->
+            <ellipse cx="8" cy="10" rx="6" ry="5" fill="rgba(255,255,255,0.3)" transform="rotate(-20, 8, 10)"/>
+            <!-- Heart highlight (right lobe, subtle) -->
+            <ellipse cx="32" cy="12" rx="4" ry="3.5" fill="rgba(255,255,255,0.15)" transform="rotate(15, 32, 12)"/>
+            <!-- Shaft -->
+            <rect x="18" y="42" width="4" height="88" rx="2" fill="url(#shaft-gradient)"/>
+            <!-- Shaft highlight -->
+            <rect x="19" y="42" width="1.5" height="88" rx="0.75" fill="rgba(255,255,255,0.2)"/>
+            <!-- Tail - elegant slim taper -->
+            <path d="M18,128 L22,128 L20,158 Z" fill="url(#tail-grad)"/>
+            <!-- Tail feather vanes -->
+            <path d="M20,136 L10,150 L18.5,141 Z" fill="#E0A0BE" opacity="0.5"/>
+            <path d="M20,136 L30,150 L21.5,141 Z" fill="#E0A0BE" opacity="0.5"/>
+            <!-- Tail center highlight -->
+            <line x1="20" y1="130" x2="20" y2="155" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
           </svg>
         </div>
         <!-- Center dot (heartbeat pulse) -->

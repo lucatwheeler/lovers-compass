@@ -762,3 +762,5 @@ class TestUnpair:
             f"/api/pair/{couple_id}?device_id=device-intruder"
         )
         assert response.status_code == 403
+
+

@@ -134,8 +134,8 @@ async def add_security_headers(request: Request, call_next):
     # Prevent MIME sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
 
-    # Prevent clickjacking
-    response.headers["X-Frame-Options"] = "DENY"
+    # Prevent clickjacking (allow embedding from Command Center)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
 
     # Enable XSS filter (legacy browsers)
     response.headers["X-XSS-Protection"] = "1; mode=block"

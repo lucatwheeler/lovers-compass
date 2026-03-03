@@ -3,10 +3,12 @@
 /* ============================================ */
 
 // ---- Constants ----
-const UPDATE_INTERVAL = 3000;   // Send location every 3s
-const POLL_INTERVAL = 2000;     // Poll partner location every 2s
+const UPDATE_INTERVAL = 1000;   // Send location every 1s
+const POLL_INTERVAL = 1000;     // Poll partner location every 1s
 const POKE_POLL_INTERVAL = 5000;// Poll pokes every 5s
 const WAIT_POLL_INTERVAL = 3000;// Poll while waiting for partner
+const ANCHOR_DURATION_MS = 60000;  // Use anchor for 60 seconds
+const ANCHOR_DISTANCE_FT = 200;    // Switch to live GPS beyond 200ft
 
 // ---- App State ----
 const state = {
@@ -38,6 +40,11 @@ const state = {
   headingCheckTimer: null,
   debugVisible: false,
   staleCheckTimer: null,
+  // Anchor mode state
+  anchorLat: null,
+  anchorLng: null,
+  anchorTime: null,  // timestamp when pair was created (for 60s timer)
+  permissionsGranted: false,
 };
 
 // ---- DOM References ----
@@ -51,6 +58,17 @@ function init() {
   state.coupleId = localStorage.getItem('couple_id');
   state.role = localStorage.getItem('role');
 
+  // Restore anchor from localStorage
+  var savedAnchor = localStorage.getItem('lc_anchor');
+  if (savedAnchor) {
+    try {
+      var a = JSON.parse(savedAnchor);
+      state.anchorLat = a.lat;
+      state.anchorLng = a.lng;
+      state.anchorTime = a.time;
+    } catch (e) { /* ignore */ }
+  }
+
   // Generate tick marks for compass
   generateTickMarks();
 
@@ -60,7 +78,8 @@ function init() {
     // Validate stored couple_id against backend before showing compass
     validateAndReconnect();
   } else {
-    showScreen('pair');
+    // New user — show permissions screen (or pair screen if already granted)
+    showScreen('permissions');
     injectDemoButton();
   }
 
@@ -112,10 +131,12 @@ function generateUUID() {
 
 // ---- Screen Management ----
 function showScreen(name) {
-  ['screen-pair', 'screen-compass', 'screen-settings'].forEach((id) => {
-    $(id).classList.add('hidden');
+  ['screen-permissions', 'screen-pair', 'screen-compass', 'screen-settings'].forEach((id) => {
+    var el = $(id);
+    if (el) el.classList.add('hidden');
   });
-  $('screen-' + name).classList.remove('hidden');
+  var target = $('screen-' + name);
+  if (target) target.classList.remove('hidden');
 
   // Reset pair sub-sections to avoid overlap when returning to pair screen
   if (name === 'pair') {
@@ -124,12 +145,67 @@ function showScreen(name) {
     $('pair-buttons').classList.remove('hidden');
     var demoBtn = $('btn-demo'); if (demoBtn) demoBtn.classList.remove('hidden');
     $('btn-create').disabled = false;
-    $('btn-create').textContent = 'Create a new compass';
+    $('btn-create').textContent = 'Create a Pair';
     $('join-code').value = '';
   }
 
   if (name === 'settings') {
     $('settings-code').textContent = state.coupleId || '';
+  }
+}
+
+// ---- Permissions ----
+function requestAllPermissions() {
+  var btn = $('btn-enable-permissions');
+  btn.disabled = true;
+  btn.textContent = 'Enabling...';
+
+  // Request geolocation first
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      state.myLat = pos.coords.latitude;
+      state.myLng = pos.coords.longitude;
+      state.lastGPSUpdate = Date.now();
+
+      // Now request motion permission (iOS requires user gesture)
+      requestMotionPermission(function () {
+        state.permissionsGranted = true;
+        showScreen('pair');
+        injectDemoButton();
+      });
+    },
+    function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Enable Lover\'s Compass';
+      if (err.code === 1) {
+        showToast('Location access is required. Please allow it and try again.');
+      } else {
+        showToast('Could not get location. Please try again.');
+      }
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+function requestMotionPermission(callback) {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ — request orientation permission for compass heading
+    DeviceOrientationEvent.requestPermission()
+      .then(function (response) {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+          window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+        // Proceed regardless — compass will still work without heading
+        callback();
+      })
+      .catch(function () {
+        // Permission request failed — proceed anyway (desktop/non-iOS)
+        callback();
+      });
+  } else {
+    // Non-iOS — orientation events don't need permission
+    callback();
   }
 }
 
@@ -161,7 +237,7 @@ async function createCompass() {
     if (result.detail) {
       showToast(result.detail);
       btn.disabled = false;
-      btn.textContent = 'Create a new compass';
+      btn.textContent = 'Create a Pair';
       return;
     }
 
@@ -173,6 +249,7 @@ async function createCompass() {
     // Show waiting state
     $('pair-buttons').classList.add('hidden');
     var demoBtn = $('btn-demo'); if (demoBtn) demoBtn.classList.add('hidden');
+    $('join-section').classList.add('hidden');
     $('waiting-section').classList.remove('hidden');
     $('waiting-code').textContent = state.coupleId;
 
@@ -200,7 +277,7 @@ async function createCompass() {
   } catch (e) {
     showToast('Something went wrong. Please try again.');
     btn.disabled = false;
-    btn.textContent = 'Create a new compass';
+    btn.textContent = 'Create a Pair';
   }
 }
 
@@ -217,9 +294,9 @@ function cancelWaiting() {
 
   $('waiting-section').classList.add('hidden');
   $('pair-buttons').classList.remove('hidden');
-  $('btn-create').disabled = false;
   var demoBtn = $("btn-demo"); if (demoBtn) demoBtn.classList.remove("hidden");
-  $('btn-create').textContent = 'Create a new compass';
+  $('btn-create').disabled = false;
+  $('btn-create').textContent = 'Create a Pair';
 }
 
 async function joinCompass() {
@@ -302,9 +379,10 @@ function injectDemoButton() {
   btn.className = 'demo-btn';
   btn.textContent = 'Try Demo';
   btn.onclick = startDemoMode;
-  // Insert after pair-buttons section
-  var pairButtons = $('pair-buttons');
-  pairButtons.parentNode.insertBefore(btn, pairButtons.nextSibling);
+  var target = $('pair-buttons');
+  if (target) {
+    target.appendChild(btn);
+  }
 }
 
 // ---- Compass Logic ----
@@ -345,10 +423,17 @@ function stopCompass() {
 
 // ---- Location Tracking ----
 function startLocationTracking() {
-  if (state.watchId !== null) return;
   if (!navigator.geolocation) {
     showToast('Location services not available');
     return;
+  }
+
+  watchPermissionState();
+
+  // Clear any existing watch and start fresh for compass
+  if (state.watchId !== null) {
+    navigator.geolocation.clearWatch(state.watchId);
+    state.watchId = null;
   }
 
   state.watchId = navigator.geolocation.watchPosition(
@@ -362,13 +447,10 @@ function startLocationTracking() {
     },
     function (err) {
       if (err.code === 1) {
-        // PERMISSION_DENIED
         showGpsError('Location Access Needed', 'Lover\u2019s Compass needs your location to point you toward your partner. Please allow location access to continue.');
       } else if (err.code === 2) {
-        // POSITION_UNAVAILABLE
         showGpsError('Location Unavailable', 'Your device can\u2019t determine its location right now. Make sure location services are enabled and try again.');
       } else if (err.code === 3) {
-        // TIMEOUT
         showGpsError('Location Timeout', 'It\u2019s taking too long to find your location. Make sure you have a clear view of the sky or a stable connection.');
       }
     },
@@ -492,12 +574,51 @@ function updatePartnerStatusUI() {
   }
 }
 
+// ---- Compass Anchor Mode ----
+function getCompassTarget() {
+  // If anchor mode is active, point to anchor instead of live partner GPS
+  if (state.anchorLat !== null && state.anchorTime !== null) {
+    var elapsed = Date.now() - state.anchorTime;
+    var withinTime = elapsed < ANCHOR_DURATION_MS;
+
+    // Check distance to anchor in feet
+    var anchorDistKm = 0;
+    if (state.myLat !== null) {
+      anchorDistKm = calculateDistance(state.myLat, state.myLng, state.anchorLat, state.anchorLng);
+    }
+    var anchorDistFt = anchorDistKm * 3280.84;
+    var withinDistance = anchorDistFt < ANCHOR_DISTANCE_FT;
+
+    if (withinTime || withinDistance) {
+      return { lat: state.anchorLat, lng: state.anchorLng, isAnchor: true };
+    } else {
+      // Anchor mode expired — clear it
+      state.anchorLat = null;
+      state.anchorLng = null;
+      state.anchorTime = null;
+      localStorage.removeItem('lc_anchor');
+    }
+  }
+
+  // Live partner GPS
+  if (state.partnerLat !== null) {
+    return { lat: state.partnerLat, lng: state.partnerLng, isAnchor: false };
+  }
+
+  return null;
+}
+
 // ---- Compass Display ----
 function updateCompassDisplay() {
-  if (state.myLat === null || state.partnerLat === null) return;
+  var target = getCompassTarget();
+  if (state.myLat === null || !target) return;
 
-  const bearing = calculateBearing(state.myLat, state.myLng, state.partnerLat, state.partnerLng);
-  const distance = calculateDistance(state.myLat, state.myLng, state.partnerLat, state.partnerLng);
+  // For bearing/needle, use anchor or live partner
+  const bearing = calculateBearing(state.myLat, state.myLng, target.lat, target.lng);
+
+  // For distance display, always use live partner if available, else anchor
+  var distTarget = (state.partnerLat !== null) ? { lat: state.partnerLat, lng: state.partnerLng } : target;
+  const distance = calculateDistance(state.myLat, state.myLng, distTarget.lat, distTarget.lng);
 
   // Adjust for device heading
   let needleBearing = bearing;
@@ -510,11 +631,11 @@ function updateCompassDisplay() {
   setNeedleRotation(needleBearing);
   updateDistanceText(distance);
 
-  // Update cardinal direction text
+  // Update cardinal direction text (romantic)
   var directions = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
   var dirIndex = Math.round(bearing / 45) % 8;
   var dirEl = $('direction-text');
-  if (dirEl) dirEl.textContent = 'Your partner is ' + directions[dirIndex];
+  if (dirEl) dirEl.textContent = 'Your heart is to the ' + directions[dirIndex] + ' ❤️';
 
   announceDirection(bearing, distance);
   updateDebugOverlay();
@@ -574,7 +695,7 @@ function startNeedleAnimation() {
     }
     var needle = $('compass-needle');
     if (needle) {
-      needle.style.transform = 'rotate(' + state.currentRotation + 'deg)';
+      needle.style.transform = 'rotate(' + (state.currentRotation + 180) + 'deg)';
     }
 
     // Lerp heading for cardinal labels (smooth counter-rotation)
@@ -606,18 +727,78 @@ function updateDistanceText(distKm) {
   var distMiles = distKm * 0.621371;
   var distFeet = distKm * 3280.84;
 
+  // Heartbeat intensity based on proximity
+  var centerDot = document.querySelector('.compass-center');
+  if (centerDot) {
+    if (distMiles < 1) {
+      centerDot.className = 'compass-center heartbeat-close';
+    } else {
+      centerDot.className = 'compass-center heartbeat';
+    }
+  }
+
+  // Hearts burst when very close
+  if (distFeet < 500) {
+    triggerHeartsBurst();
+  }
+
   if (distFeet < 50) {
-    el.innerHTML = '<span class="distance-close">Right next to each other!</span>';
+    el.innerHTML = '<span class="distance-close">Together at last! 💑</span>';
+  } else if (distFeet < 500) {
+    var feet = Math.round(distFeet);
+    el.innerHTML = 'Almost there! 🥰 Just <span class="distance-value">' + feet + ' ft</span> away';
   } else if (distMiles < 0.5) {
     var feet = Math.round(distFeet);
-    el.innerHTML = 'You are <span class="distance-value">' + feet + ' ft</span> apart';
-  } else if (distMiles < 100) {
+    el.innerHTML = 'Getting warmer! 💓 <span class="distance-value">' + feet + ' ft</span> to go';
+  } else if (distMiles < 5) {
     var miles = distMiles.toFixed(1);
-    el.innerHTML = 'You are <span class="distance-value">' + miles + ' mi</span> apart';
+    el.innerHTML = 'Your love is <span class="distance-value">' + miles + ' mi</span> away ❤️';
   } else {
-    var miles = Math.round(distMiles);
-    el.innerHTML = 'You are <span class="distance-value">' + miles + ' mi</span> apart';
+    var miles = distMiles < 100 ? distMiles.toFixed(1) : Math.round(distMiles);
+    el.innerHTML = '<span class="distance-value">' + miles + ' mi</span> apart, but always connected 💕';
   }
+}
+
+// ---- Hearts Burst (proximity celebration) ----
+var _lastBurstTime = 0;
+function triggerHeartsBurst() {
+  var now = Date.now();
+  // Cooldown: only burst once every 30 seconds
+  if (now - _lastBurstTime < 30000) return;
+  _lastBurstTime = now;
+
+  var container = $('hearts-burst');
+  if (!container) return;
+
+  var hearts = ['💕', '❤️', '💖', '💗', '💘', '💝', '💓', '🥰', '😍'];
+  var count = 15;
+
+  for (var i = 0; i < count; i++) {
+    var heart = document.createElement('span');
+    heart.className = 'burst-heart';
+    heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+    heart.style.left = '50%';
+    heart.style.top = '45%';
+    // Random direction
+    var angle = (Math.random() * 360) * (Math.PI / 180);
+    var distance = 80 + Math.random() * 200;
+    heart.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+    heart.style.setProperty('--ty', Math.sin(angle) * distance - 100 + 'px');
+    heart.style.setProperty('--rot', (Math.random() * 360 - 180) + 'deg');
+    heart.style.fontSize = (16 + Math.random() * 20) + 'px';
+    heart.style.animationDelay = (Math.random() * 0.3) + 's';
+    container.appendChild(heart);
+  }
+
+  // Clean up after animation
+  setTimeout(function() {
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+  }, 2000);
+
+  // Haptic feedback
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 }
 
 // ---- Geolocation Math ----
@@ -693,19 +874,19 @@ async function sendPoke() {
   btn.classList.add('poked');
 
   // Swap label to "Sent!"
-  var label = btn.querySelector('span');
+  var label = btn.querySelector('span:last-child');
   var origText = label.textContent;
-  label.textContent = 'Sent!';
+  label.textContent = 'Sent! 💋';
 
   if (window.demoMode) {
-    showToast('\uD83D\uDC8C Poke sent!', true);
+    showToast('💋 Kiss sent!', true);
   } else if (!state.isOnline) {
     // Queue poke for when we're back online
     state.pokeQueue.push({
       couple_id: state.coupleId,
       device_id: state.deviceId,
     });
-    showToast('You\u2019re offline \u2014 poke will send when reconnected');
+    showToast('You\u2019re offline \u2014 kiss will send when reconnected');
   } else {
     if (!state.coupleId) return;
     try {
@@ -713,9 +894,9 @@ async function sendPoke() {
         couple_id: state.coupleId,
         device_id: state.deviceId,
       });
-      showToast('Poke sent!', true);
+      showToast('💋 Kiss sent!', true);
     } catch (e) {
-      showToast('Could not send poke. Try again.');
+      showToast('Could not send kiss. Try again.');
     }
   }
 
@@ -752,9 +933,18 @@ function startPokePolling() {
 
 function showPokeBanner() {
   var banner = $('poke-banner');
-  banner.textContent = 'Your partner is thinking of you!';
+  var messages = [
+    'Your partner sent you a kiss! 💋',
+    'Someone is thinking of you! 💕',
+    'You just got a love note! 💌',
+    'Your partner misses you! 🥰',
+  ];
+  banner.textContent = messages[Math.floor(Math.random() * messages.length)];
   banner.classList.remove('hidden');
   banner.classList.add('visible');
+
+  // Show kiss overlay animation
+  showKissOverlay();
 
   // Vibrate if supported
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -765,6 +955,20 @@ function showPokeBanner() {
       banner.classList.add('hidden');
     }, 400);
   }, 4000);
+}
+
+function showKissOverlay() {
+  var overlay = $('kiss-overlay');
+  if (!overlay) return;
+  overlay.innerHTML = '<span class="kiss-emoji-big">💋</span>';
+  overlay.classList.remove('hidden');
+  overlay.classList.add('active');
+
+  setTimeout(function() {
+    overlay.classList.remove('active');
+    overlay.classList.add('hidden');
+    overlay.innerHTML = '';
+  }, 2200);
 }
 
 // ---- Sharing Toggle ----
@@ -821,20 +1025,20 @@ async function unpair() {
   state.lastGPSUpdate = null;
   state.lastPartnerPoll = null;
   state.debugVisible = false;
+  state.anchorLat = null;
+  state.anchorLng = null;
+  state.anchorTime = null;
 
   localStorage.removeItem('couple_id');
   localStorage.removeItem('role');
+  localStorage.removeItem('lc_anchor');
+
+  // Generate fresh device_id to prevent stale backend references
+  state.deviceId = generateUUID();
+  localStorage.setItem('device_id', state.deviceId);
 
   // Clear demo mode if active
   if (window.demoMode) exitDemoMode();
-
-  // Reset pair screen
-  $('waiting-section').classList.add('hidden');
-  $('join-section').classList.add('hidden');
-  $('pair-buttons').classList.remove('hidden');
-  $('btn-create').disabled = false;
-  $('btn-create').textContent = 'Create a new compass';
-  $('join-code').value = '';
 
   showScreen('pair');
   showToast('Unpaired successfully');
@@ -905,6 +1109,25 @@ function generateTickMarks() {
   }
 }
 
+// ---- Geolocation Permission Watcher ----
+var _permissionWatchSet = false;
+function watchPermissionState() {
+  if (_permissionWatchSet) return;
+  if (!navigator.permissions) return;
+  navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+    _permissionWatchSet = true;
+    result.addEventListener('change', function() {
+      if (result.state === 'granted') {
+        hideGpsError();
+        stopLocationTracking();
+        startLocationTracking();
+      }
+    });
+  }).catch(function() {
+    // Permissions API not supported for geolocation on this browser
+  });
+}
+
 // ---- GPS Permission Error ----
 function showGpsError(title, message) {
   var banner = $('gps-error-banner');
@@ -930,7 +1153,12 @@ function retryLocationPermission() {
   stopLocationTracking();
   navigator.geolocation.getCurrentPosition(
     function (pos) {
+      state.myLat = pos.coords.latitude;
+      state.myLng = pos.coords.longitude;
+      state.lastGPSUpdate = Date.now();
+      hideGpsError();
       startLocationTracking();
+      updateCompassDisplay();
     },
     function (err) {
       if (err.code === 1) {
@@ -1081,11 +1309,17 @@ function updateDebugOverlay() {
     ? calculateBearing(state.myLat, state.myLng, state.partnerLat, state.partnerLng).toFixed(1)
     : 'N/A';
 
+  var anchorInfo = state.anchorLat !== null ?
+    'anchor: ' + state.anchorLat.toFixed(6) + ',' + state.anchorLng.toFixed(6) + '\n' +
+    'anchorAge: ' + (state.anchorTime ? Math.round((Date.now() - state.anchorTime) / 1000) + 's' : 'n/a') + '\n'
+    : '';
+
   overlay.textContent =
     'myLat: ' + (state.myLat !== null ? state.myLat.toFixed(6) : 'null') + '\n' +
     'myLng: ' + (state.myLng !== null ? state.myLng.toFixed(6) : 'null') + '\n' +
     'pLat: ' + (state.partnerLat !== null ? state.partnerLat.toFixed(6) : 'null') + '\n' +
     'pLng: ' + (state.partnerLng !== null ? state.partnerLng.toFixed(6) : 'null') + '\n' +
+    anchorInfo +
     'bearing: ' + bearing + '\n' +
     'heading: ' + (state.deviceHeading !== null ? state.deviceHeading.toFixed(1) : 'null') + '\n' +
     'needle: ' + state.currentRotation.toFixed(1) + '\n' +
