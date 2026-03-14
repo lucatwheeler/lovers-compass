@@ -58,3 +58,6 @@ node_modules/
 
 # Test artifacts
 visual-test-screenshots/
+
+# Backup of old iOS client
+ios-client-old/
