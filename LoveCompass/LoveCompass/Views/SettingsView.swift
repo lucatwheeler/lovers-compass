@@ -88,7 +88,7 @@ struct SettingsView: View {
                     }
 
                     ShareLink(
-                        item: "Join me on Love Compass! Use code: \(coupleId)"
+                        item: "Join me on Lover's Compass! Use code: \(coupleId)"
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold))
@@ -106,7 +106,15 @@ struct SettingsView: View {
     private var privacySection: some View {
         Section("Privacy") {
             HStack {
-                Label("Location Data", systemImage: "location.fill")
+                Label("Tracking", systemImage: "location.fill")
+                Spacer()
+                Text("While app is open")
+                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+            }
+
+            HStack {
+                Label("Location Data", systemImage: "shield.lefthalf.filled")
                 Spacer()
                 Text("Latest only")
                     .foregroundColor(.secondary)
@@ -148,7 +156,7 @@ struct SettingsView: View {
                     Image(systemName: "heart.fill")
                         .font(.system(size: 20))
                         .foregroundColor(rosePink)
-                    Text("Made with love")
+                    Text("Made with love, for lovers")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
                     Text("For the two of you, always.")

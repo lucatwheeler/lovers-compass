@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Love Compass</string>
+	<string>Lover's Compass</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,19 +47,19 @@
 		<string>magnetometer</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Love Compass needs your location to show where you are on the map and point the compass toward your partner.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Love Compass uses your location in the background so your partner can always see where you are, even when the app is not open.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Love Compass uses your location in the background so your partner can always find you.</string>
+	<string>Lover's Compass needs your location to show where you are on the map and point the compass toward your partner.</string>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 	<key>API_BASE_URL</key>
-	<string>https://web-production-558a2.up.railway.app</string>
+	<string>http://10.0.0.150:8000</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

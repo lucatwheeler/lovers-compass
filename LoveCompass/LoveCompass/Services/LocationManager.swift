@@ -2,14 +2,21 @@ import Foundation
 import CoreLocation
 import UIKit
 
-/// Manages device location with background update support.
-/// Publishes the current coordinate and authorization status for SwiftUI views to observe.
+/// Manages device location and compass heading using a single CLLocationManager.
+/// Heading and location share the same authorized manager so heading actually works.
 final class LocationManager: NSObject, ObservableObject {
 
     // MARK: - Published Properties
 
     @Published var currentLocation: CLLocationCoordinate2D?
-    @Published var authorizationStatus: CLAuthorizationStatus
+    /// Continuous heading that never wraps (avoids 359->1 animation glitch).
+    /// Use this for rotation animations.
+    @Published var heading: Double = 0
+    @Published var headingAvailable: Bool = false
+
+    /// Tracks cumulative rotation so we always take the short path.
+    private var rawHeading: Double = 0
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var locationError: String?
 
     // MARK: - Computed Properties
@@ -26,10 +33,6 @@ final class LocationManager: NSObject, ObservableObject {
         authorizationStatus == .notDetermined
     }
 
-    var hasAlwaysPermission: Bool {
-        authorizationStatus == .authorizedAlways
-    }
-
     // MARK: - Private Properties
 
     private let manager = CLLocationManager()
@@ -37,27 +40,18 @@ final class LocationManager: NSObject, ObservableObject {
     // MARK: - Initialization
 
     override init() {
-        self.authorizationStatus = CLLocationManager.authorizationStatus()
         super.init()
-
+        authorizationStatus = manager.authorizationStatus
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        manager.distanceFilter = 50
-        manager.allowsBackgroundLocationUpdates = true
-        manager.pausesLocationUpdatesAutomatically = false
-        manager.showsBackgroundLocationIndicator = true
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 20
+        manager.headingFilter = kCLHeadingFilterNone
     }
 
     // MARK: - Public Methods
 
-    /// Request "Always" location permission for background tracking.
     func requestPermission() {
         manager.requestWhenInUseAuthorization()
-    }
-
-    /// Upgrade to Always permission after initial When-In-Use grant.
-    func requestAlwaysPermission() {
-        manager.requestAlwaysAuthorization()
     }
 
     func startUpdating() {
@@ -76,10 +70,16 @@ final class LocationManager: NSObject, ObservableObject {
         }
 
         manager.startUpdatingLocation()
+
+        if CLLocationManager.headingAvailable() {
+            headingAvailable = true
+            manager.startUpdatingHeading()
+        }
     }
 
     func stopUpdating() {
         manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
     }
 
     func openSettings() {
@@ -102,6 +102,19 @@ extension LocationManager: CLLocationManagerDelegate {
         }
     }
 
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        let newRaw = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+
+        DispatchQueue.main.async {
+            // Calculate shortest-path delta to avoid the 359->1 wraparound glitch
+            var delta = newRaw - self.rawHeading.truncatingRemainder(dividingBy: 360)
+            if delta > 180 { delta -= 360 }
+            if delta < -180 { delta += 360 }
+            self.rawHeading += delta
+            self.heading = self.rawHeading
+        }
+    }
+
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         DispatchQueue.main.async {
             if !self.isDenied {
@@ -115,10 +128,6 @@ extension LocationManager: CLLocationManagerDelegate {
             self.authorizationStatus = manager.authorizationStatus
             if self.isAuthorized {
                 self.startUpdating()
-                // After getting When-In-Use, request upgrade to Always
-                if manager.authorizationStatus == .authorizedWhenInUse {
-                    self.requestAlwaysPermission()
-                }
             } else if self.isDenied {
                 self.locationError = "Location permission denied. Please enable in Settings."
             }

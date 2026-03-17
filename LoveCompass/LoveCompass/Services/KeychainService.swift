@@ -6,7 +6,7 @@ import Security
 final class KeychainService {
     static let shared = KeychainService()
 
-    private let service = "com.lovecompass.app"
+    private let service = "com.ltw.lovecompass"
     private let deviceIdKey = "deviceId"
     private let coupleIdKey = "coupleId"
 

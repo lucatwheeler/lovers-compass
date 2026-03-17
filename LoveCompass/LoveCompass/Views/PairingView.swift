@@ -80,11 +80,11 @@ struct PairingView: View {
                 )
                 .shadow(color: rosePink.opacity(0.4), radius: 15, y: 5)
 
-            Text("Love Compass")
+            Text("Lover's Compass")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundColor(deepRose)
 
-            Text("A compass that always points to your heart")
+            Text("A compass that always points to your lover")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundColor(rosePink.opacity(0.8))
                 .multilineTextAlignment(.center)
