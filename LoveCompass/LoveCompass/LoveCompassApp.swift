@@ -28,12 +28,11 @@ struct LoveCompassApp: App {
 
 // MARK: - Root View
 
-/// Decides whether to show the pairing flow or the main compass view
-/// based on whether the user has already paired.
 struct RootView: View {
     @State private var isPaired: Bool = false
     @State private var coupleId: String = ""
     @State private var deviceId: String = ""
+    @State private var deepLinkCode: String? = nil
 
     var body: some View {
         Group {
@@ -46,7 +45,7 @@ struct RootView: View {
                     )
                 }
             } else {
-                PairingView(onPaired: handlePaired)
+                PairingView(onPaired: handlePaired, prefillCode: deepLinkCode)
             }
         }
         .onAppear {
@@ -56,11 +55,15 @@ struct RootView: View {
                 isPaired = true
             }
         }
+        .onOpenURL { url in
+            handleDeepLink(url)
+        }
     }
 
     private func handlePaired(_ newCoupleId: String) {
         KeychainService.shared.saveCoupleId(newCoupleId)
         coupleId = newCoupleId
+        deepLinkCode = nil
         withAnimation(.easeInOut(duration: 0.4)) {
             isPaired = true
         }
@@ -72,5 +75,20 @@ struct RootView: View {
             isPaired = false
             coupleId = ""
         }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        // Handles: loverscompass://join/ABCD1234
+        guard url.scheme == "loverscompass",
+              url.host == "join",
+              let code = url.pathComponents.last,
+              code.count == 8 else { return }
+
+        if isPaired {
+            // Already paired — ignore
+            return
+        }
+
+        deepLinkCode = code.uppercased()
     }
 }

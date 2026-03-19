@@ -23,9 +23,11 @@ struct MapView: View {
 
     // Arrow fire animation states
     @State private var bowPulledBack: Bool = false
-    @State private var arrowFlyOffset: CGFloat = 0   // how far the arrow has slid forward along its axis
+    @State private var arrowFlyOffset: CGFloat = 0
     @State private var arrowFlyOpacity: Double = 1.0
-    @State private var arrowFiring: Bool = false      // true during the whole fire sequence
+    @State private var arrowFiring: Bool = false
+    @State private var showPokeSentBurst: Bool = false
+    @State private var pokeSentMessage: String = ""
 
     private let syncInterval: TimeInterval = 10
 
@@ -85,6 +87,13 @@ struct MapView: View {
                     .foregroundColor(rosePink.opacity(0.6))
                 }
                 .padding(.bottom, 28)
+            }
+
+            // Poke sent burst
+            if showPokeSentBurst {
+                pokeSentBurstOverlay
+                    .allowsHitTesting(false)
+                    .zIndex(25)
             }
 
             // Poke received
@@ -543,8 +552,8 @@ struct MapView: View {
             Task { await pokeManager?.sendPoke() }
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "arrow.up.heart.fill").font(.system(size: 18))
-                Text("Send Arrow").font(.system(size: 17, weight: .bold, design: .rounded))
+                Image(systemName: "heart.fill").font(.system(size: 16))
+                Text("Send a Poke").font(.system(size: 17, weight: .bold, design: .rounded))
             }
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
@@ -561,28 +570,96 @@ struct MapView: View {
 
     // MARK: - Fire Arrow Sequence
 
+    private let pokeMessages = [
+        "ily 💕", "thinking of you ✨", "miss you 🥺",
+        "you're my favorite 💗", "poke! 😘", "hey cutie 💘",
+        "love you always 💝", "wish you were here 🫶",
+        "you make me smile 😊", "sending love your way 💌"
+    ]
+
     private func fireArrowSequence() {
         // 1. Pull back
         withAnimation(.easeOut(duration: 0.3)) {
             bowPulledBack = true
         }
 
-        // 2. Release — arrow flies forward along its own axis
+        // 2. Release — arrow flies forward
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             bowPulledBack = false
             arrowFiring = true
 
             withAnimation(.easeIn(duration: 0.5)) {
-                arrowFlyOffset = 500  // slides forward (negative Y = toward arrowhead)
+                arrowFlyOffset = 500
                 arrowFlyOpacity = 0
+            }
+
+            // Show heart burst + message
+            pokeSentMessage = pokeMessages.randomElement() ?? "poke! 💕"
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                showPokeSentBurst = true
             }
         }
 
-        // 3. Reset
+        // 3. Hide burst
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                showPokeSentBurst = false
+            }
+        }
+
+        // 4. Reset arrow
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
             arrowFiring = false
             arrowFlyOffset = 0
             arrowFlyOpacity = 1.0
+        }
+    }
+
+    // MARK: - Poke Sent Burst
+
+    private var pokeSentBurstOverlay: some View {
+        ZStack {
+            // Exploding hearts
+            ForEach(0..<12, id: \.self) { i in
+                let angle = Double(i) * 30.0
+                let rad = angle * .pi / 180.0
+                let dist: CGFloat = showPokeSentBurst ? CGFloat(60 + (i % 3) * 25) : 0
+
+                Image(systemName: "heart.fill")
+                    .font(.system(size: CGFloat([14, 10, 18, 12, 16, 11, 15, 9, 13, 17, 10, 14][i])))
+                    .foregroundColor(
+                        [deepRose, rosePink, crimson, rosePink, deepRose, crimson,
+                         rosePink, deepRose, crimson, rosePink, deepRose, rosePink][i]
+                            .opacity(showPokeSentBurst ? 0 : 0.9)
+                    )
+                    .offset(
+                        x: cos(rad) * dist,
+                        y: sin(rad) * dist
+                    )
+                    .scaleEffect(showPokeSentBurst ? 0.3 : 1.0)
+                    .animation(
+                        .easeOut(duration: 0.8).delay(Double(i) * 0.03),
+                        value: showPokeSentBurst
+                    )
+            }
+
+            // Message pill
+            Text(pokeSentMessage)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(
+                            LinearGradient(colors: [rosePink, deepRose],
+                                           startPoint: .leading, endPoint: .trailing)
+                        )
+                        .shadow(color: deepRose.opacity(0.3), radius: 8, y: 3)
+                )
+                .scaleEffect(showPokeSentBurst ? 1 : 0.5)
+                .opacity(showPokeSentBurst ? 1 : 0)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showPokeSentBurst)
         }
     }
 
@@ -600,7 +677,7 @@ struct MapView: View {
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(rosePink.opacity(0.6))
                 }
-                if let s = staleness, s > 60 {
+                if let s = staleness {
                     Text("updated \(formatStaleness(s))")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(s > 300 ? .orange : .secondary)
@@ -624,7 +701,7 @@ struct MapView: View {
                     .font(.system(size: 56))
                     .foregroundStyle(LinearGradient(colors: [rosePink, deepRose], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .shadow(color: deepRose.opacity(0.4), radius: 12)
-                Text("Your lover sent\nyou an arrow!")
+                Text("Your lover is\nthinking of you!")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(deepRose)
                     .multilineTextAlignment(.center)
@@ -779,9 +856,15 @@ enum CompassCalculator {
     }
 
     static func formatDistance(_ meters: Double) -> String {
-        if meters < 1000 { return String(format: "%.0f m", meters) }
-        else if meters < 10000 { return String(format: "%.1f km", meters / 1000) }
-        else { return String(format: "%.0f km", meters / 1000) }
+        let miles = meters / 1609.344
+        if miles < 0.1 {
+            let feet = meters * 3.28084
+            return String(format: "%.0f ft", feet)
+        } else if miles < 10 {
+            return String(format: "%.1f mi", miles)
+        } else {
+            return String(format: "%.0f mi", miles)
+        }
     }
 }
 
@@ -835,10 +918,21 @@ final class PokeManager: ObservableObject {
         } catch { print("Failed to check pokes: \(error)") }
     }
 
+    private let pokeNotifications = [
+        "Your lover is thinking of you! 💕",
+        "Someone loves you! 💘",
+        "You just got poked! 😘",
+        "Your lover misses you! 🥺",
+        "A little love note just arrived! 💌",
+        "Someone can't stop thinking about you! ✨",
+        "You're on your lover's mind! 💗",
+        "Poke! Your lover says hi! 💝"
+    ]
+
     private func fireLocalNotification() {
         let content = UNMutableNotificationContent()
         content.title = "Lover's Compass"
-        content.body = "Your lover sent you an arrow!"
+        content.body = pokeNotifications.randomElement() ?? "Your lover poked you! 💕"
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         let request = UNNotificationRequest(identifier: "poke-\(UUID().uuidString)", content: content, trigger: trigger)

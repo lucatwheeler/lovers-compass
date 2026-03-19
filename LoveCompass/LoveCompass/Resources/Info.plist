@@ -54,6 +54,17 @@
 	</array>
 	<key>API_BASE_URL</key>
 	<string>http://10.0.0.150:8000</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.ltw.lovecompass</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>loverscompass</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>

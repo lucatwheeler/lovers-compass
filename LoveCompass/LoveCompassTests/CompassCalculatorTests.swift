@@ -108,21 +108,21 @@ final class CompassCalculatorTests: XCTestCase {
 
     // MARK: - Format Distance Tests
 
-    func testFormatDistanceMeters() {
-        XCTAssertEqual(CompassCalculator.formatDistance(50), "50 m")
-        XCTAssertEqual(CompassCalculator.formatDistance(999), "999 m")
-        XCTAssertEqual(CompassCalculator.formatDistance(0), "0 m")
+    func testFormatDistanceFeet() {
+        // Under 0.1 miles (~161m) should show feet
+        XCTAssertEqual(CompassCalculator.formatDistance(30), "98 ft")
+        XCTAssertEqual(CompassCalculator.formatDistance(0), "0 ft")
     }
 
-    func testFormatDistanceKilometersWithDecimal() {
-        XCTAssertEqual(CompassCalculator.formatDistance(1000), "1.0 km")
-        XCTAssertEqual(CompassCalculator.formatDistance(5500), "5.5 km")
-        XCTAssertEqual(CompassCalculator.formatDistance(9999), "10.0 km")
+    func testFormatDistanceMilesWithDecimal() {
+        // 1609m = 1 mile
+        XCTAssertEqual(CompassCalculator.formatDistance(1609), "1.0 mi")
+        XCTAssertEqual(CompassCalculator.formatDistance(8047), "5.0 mi")
     }
 
-    func testFormatDistanceLargeKilometers() {
-        XCTAssertEqual(CompassCalculator.formatDistance(10000), "10 km")
-        XCTAssertEqual(CompassCalculator.formatDistance(100000), "100 km")
-        XCTAssertEqual(CompassCalculator.formatDistance(5570000), "5570 km")
+    func testFormatDistanceLargeMiles() {
+        // Over 10 miles shows whole number
+        XCTAssertEqual(CompassCalculator.formatDistance(32187), "20 mi")
+        XCTAssertEqual(CompassCalculator.formatDistance(160934), "100 mi")
     }
 }

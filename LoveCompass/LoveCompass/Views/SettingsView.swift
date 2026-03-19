@@ -88,7 +88,7 @@ struct SettingsView: View {
                     }
 
                     ShareLink(
-                        item: "Join me on Lover's Compass! Use code: \(coupleId)"
+                        item: "I want you to be my lover on Lover's Compass! 💘 Tap to join: loverscompass://join/\(coupleId)"
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold))

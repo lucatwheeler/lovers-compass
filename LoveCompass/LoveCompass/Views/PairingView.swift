@@ -4,6 +4,7 @@ import SwiftUI
 /// Features a romantic pink gradient design with smooth animations.
 struct PairingView: View {
     let onPaired: (String) -> Void
+    var prefillCode: String? = nil
 
     private let api = APIService.shared
 
@@ -43,6 +44,16 @@ struct PairingView: View {
         }
         .onAppear {
             deviceId = KeychainService.shared.getOrCreateDeviceId()
+            if let code = prefillCode, !code.isEmpty {
+                coupleCodeInput = code
+                Task { await handleJoinCouple() }
+            }
+        }
+        .onChange(of: prefillCode) { _, newCode in
+            if let code = newCode, !code.isEmpty {
+                coupleCodeInput = code
+                Task { await handleJoinCouple() }
+            }
         }
         .alert("Something Went Wrong", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -239,6 +250,26 @@ struct PairingView: View {
                 )
                 .textSelection(.enabled)
 
+            ShareLink(
+                item: "I want you to be my lover on Lover's Compass! 💘 Tap to join: loverscompass://join/\(code)"
+            ) {
+                HStack(spacing: 6) {
+                    Image(systemName: "paperplane.fill")
+                    Text("Send Invite")
+                }
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 11)
+                .background(
+                    Capsule()
+                        .fill(
+                            LinearGradient(colors: [rosePink, deepRose],
+                                           startPoint: .leading, endPoint: .trailing)
+                        )
+                )
+            }
+
             Button {
                 UIPasteboard.general.string = code
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -252,14 +283,8 @@ struct PairingView: View {
                     Image(systemName: codeCopied ? "checkmark.circle.fill" : "doc.on.doc")
                     Text(codeCopied ? "Copied!" : "Copy Code")
                 }
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(codeCopied ? Color.green : rosePink)
-                )
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(rosePink)
             }
         }
     }
