@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import PhotosUI
 
 struct MapView: View {
     let deviceId: String
@@ -9,6 +10,7 @@ struct MapView: View {
 
     private let api = APIService.shared
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var photoStorage = PhotoStorage.shared
 
     @State private var partnerLocation: CLLocationCoordinate2D?
     @State private var partnerConnected: Bool = false
@@ -28,6 +30,8 @@ struct MapView: View {
     @State private var arrowFiring: Bool = false
     @State private var showPokeSentBurst: Bool = false
     @State private var pokeSentMessage: String = ""
+    @State private var showPhotoPicker: Bool = false
+    @State private var selectedPhoto: PhotosPickerItem? = nil
 
     private let syncInterval: TimeInterval = 10
 
@@ -118,6 +122,16 @@ struct MapView: View {
             waitingPulse = true
         }
         .onDisappear { stopServices(); pokeManager?.stopPolling() }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    photoStorage.saveImage(image)
+                }
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView(coupleId: coupleId, deviceId: deviceId, onUnpair: { onUnpair?() })
         }
@@ -274,26 +288,65 @@ struct MapView: View {
                 )
                 .frame(width: size * 0.95, height: size * 0.95)
 
-            // Inner white face
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [.white, Color(red: 1.0, green: 0.98, blue: 0.97)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: size * 0.45
+            // Inner face -- photo locket or plain
+            if let photo = photoStorage.partnerImage {
+                // Partner photo as compass face
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size * 0.86, height: size * 0.86)
+                    .clipShape(Circle())
+                    .overlay(
+                        // Soft vignette so compass elements stay readable
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [.clear, .clear, .white.opacity(0.3), .white.opacity(0.7)],
+                                    center: .center,
+                                    startRadius: size * 0.2,
+                                    endRadius: size * 0.44
+                                )
+                            )
                     )
-                )
-                .frame(width: size * 0.88, height: size * 0.88)
+                    .frame(width: size * 0.86, height: size * 0.86)
 
-            // Subtle texture hearts on the face
-            ForEach(0..<12, id: \.self) { i in
-                let angle = Double(i) * 30.0
-                let radius = size * 0.28
-                Image(systemName: "heart.fill")
-                    .font(.system(size: size * 0.022))
-                    .foregroundColor(rosePink.opacity(0.06))
-                    .offset(x: cos(angle * .pi / 180) * radius, y: sin(angle * .pi / 180) * radius)
+                // Tap to change photo hint
+                Circle()
+                    .fill(.clear)
+                    .frame(width: size * 0.25, height: size * 0.25)
+                    .onTapGesture { showPhotoPicker = true }
+            } else {
+                // Plain white face with hearts texture
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.white, Color(red: 1.0, green: 0.98, blue: 0.97)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: size * 0.45
+                        )
+                    )
+                    .frame(width: size * 0.88, height: size * 0.88)
+
+                ForEach(0..<12, id: \.self) { i in
+                    let angle = Double(i) * 30.0
+                    let radius = size * 0.28
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: size * 0.022))
+                        .foregroundColor(rosePink.opacity(0.06))
+                        .offset(x: cos(angle * .pi / 180) * radius, y: sin(angle * .pi / 180) * radius)
+                }
+
+                // Tap to add photo
+                VStack(spacing: 4) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: size * 0.03))
+                    Text("add photo")
+                        .font(.system(size: size * 0.022, weight: .medium, design: .rounded))
+                }
+                .foregroundColor(rosePink.opacity(0.2))
+                .offset(y: size * 0.15)
+                .onTapGesture { showPhotoPicker = true }
             }
 
             // Inner ring

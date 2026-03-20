@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 /// Settings screen with couple code display, share/copy actions, about section,
 /// and unpair with confirmation.
@@ -8,6 +9,8 @@ struct SettingsView: View {
     let onUnpair: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var photoStorage = PhotoStorage.shared
+    @State private var selectedPhoto: PhotosPickerItem? = nil
 
     @State private var showUnpairConfirmation = false
     @State private var codeCopied = false
@@ -22,6 +25,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 coupleCodeSection
+                compassPhotoSection
                 privacySection
                 aboutSection
                 dangerSection
@@ -102,6 +106,59 @@ struct SettingsView: View {
     }
 
     // MARK: - Privacy Section
+
+    // MARK: - Compass Photo
+
+    private var compassPhotoSection: some View {
+        Section("Compass Photo") {
+            if let image = photoStorage.partnerImage {
+                HStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(rosePink.opacity(0.3), lineWidth: 1))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Locket Photo")
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Shows on your compass face")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button(role: .destructive) {
+                        photoStorage.deleteImage()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14))
+                            .foregroundColor(.red.opacity(0.6))
+                    }
+                }
+            }
+
+            PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                Label(
+                    photoStorage.partnerImage == nil ? "Add Partner Photo" : "Change Photo",
+                    systemImage: "camera.fill"
+                )
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(rosePink)
+            }
+            .onChange(of: selectedPhoto) { _, newItem in
+                guard let newItem else { return }
+                Task {
+                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        photoStorage.saveImage(image)
+                    }
+                }
+            }
+        }
+    }
 
     private var privacySection: some View {
         Section("Privacy") {

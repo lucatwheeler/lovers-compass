@@ -17,6 +17,7 @@
 		A1000008 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000008 /* APIService.swift */; };
 		A1000009 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000009 /* LocationManager.swift */; };
 		A100000A /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000A /* KeychainService.swift */; };
+		A100000D /* PhotoStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000E /* PhotoStorage.swift */; };
 		A100000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000B /* Assets.xcassets */; };
 		A100000C /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000C /* Preview Assets.xcassets */; };
 		A2000001 /* CompassCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* CompassCalculatorTests.swift */; };
@@ -45,6 +46,7 @@
 		B1000008 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		B1000009 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		B100000A /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		B100000E /* PhotoStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStorage.swift; sourceTree = "<group>"; };
 		B100000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B100000C /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B100000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 				B1000008 /* APIService.swift */,
 				B1000009 /* LocationManager.swift */,
 				B100000A /* KeychainService.swift */,
+				B100000E /* PhotoStorage.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -271,6 +274,7 @@
 				A1000008 /* APIService.swift in Sources */,
 				A1000009 /* LocationManager.swift in Sources */,
 				A100000A /* KeychainService.swift in Sources */,
+				A100000D /* PhotoStorage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
