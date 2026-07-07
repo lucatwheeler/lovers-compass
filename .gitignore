@@ -61,3 +61,7 @@ visual-test-screenshots/
 
 # Backup of old iOS client
 ios-client-old/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
