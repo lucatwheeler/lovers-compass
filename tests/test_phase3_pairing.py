@@ -10,65 +10,14 @@ Tests the pairing functionality including:
 - Schema validation
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.main import app
-from app.database import Base, get_db
 from app import crud
 
-
-# ============================================================================
-# Test Database Setup
-# ============================================================================
-
-# Create in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from tests.conftest import TestingSessionLocal
 
 
-def override_get_db():
-    """Override database dependency with test database."""
-    database = TestingSessionLocal()
-    try:
-        yield database
-    finally:
-        database.close()
-
-
-# Override the database dependency
-app.dependency_overrides[get_db] = override_get_db
-
-# Disable rate limiting for tests by resetting the limiter storage before each test
-from app.rate_limit import limiter, device_limiter_body, device_limiter_query
-
-
-@pytest.fixture(autouse=True)
-def setup_database():
-    """Create fresh database tables and reset rate limits before each test."""
-    Base.metadata.create_all(bind=engine)
-    # Reset rate limit storage to avoid cross-test rate limit issues
-    limiter.reset()
-    device_limiter_body.reset()
-    device_limiter_query.reset()
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture()
-def client():
-    """Create a fresh TestClient for each test."""
-    with TestClient(app) as c:
-        yield c
+def auth(token: str) -> dict:
+    """Authorization header for a device token."""
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ============================================================================
@@ -326,6 +275,7 @@ class TestPairJoin:
             "device_id": "device-duplicate"
         })
         couple_id = create_response.json()["couple_id"]
+        token = create_response.json()["auth_token"]
 
         # Add device location (updates the existing record from CREATE)
         response1 = client.post("/updateLocation", json={
@@ -334,7 +284,7 @@ class TestPairJoin:
             "latitude": 37.7749,
             "longitude": -122.4194,
             "is_sharing": True
-        })
+        }, headers=auth(token))
         assert response1.status_code == 200
 
         # Try to add same device again - should update, not create
@@ -344,7 +294,7 @@ class TestPairJoin:
             "latitude": 37.8044,
             "longitude": -122.2712,
             "is_sharing": True
-        })
+        }, headers=auth(token))
         assert response2.status_code == 200
 
         # Verify only 1 device exists
@@ -504,6 +454,7 @@ class TestPairingIntegration:
         })
         assert create_response.status_code == 200
         couple_id = create_response.json()["couple_id"]
+        token1 = create_response.json()["auth_token"]
 
         # Step 2: Device 1 updates location
         update1_response = client.post("/updateLocation", json={
@@ -512,7 +463,7 @@ class TestPairingIntegration:
             "latitude": 37.7749,
             "longitude": -122.4194,
             "is_sharing": True
-        })
+        }, headers=auth(token1))
         assert update1_response.status_code == 200
 
         # Step 3: Device 2 joins couple
@@ -523,6 +474,7 @@ class TestPairingIntegration:
         })
         assert join_response.status_code == 200
         assert join_response.json()["existing_devices"] == 1
+        token2 = join_response.json()["auth_token"]
 
         # Step 4: Device 2 updates location
         update2_response = client.post("/updateLocation", json={
@@ -531,12 +483,13 @@ class TestPairingIntegration:
             "latitude": 37.8044,
             "longitude": -122.2712,
             "is_sharing": True
-        })
+        }, headers=auth(token2))
         assert update2_response.status_code == 200
 
         # Step 5: Device 1 gets Device 2's location
         partner1_response = client.get(
-            f"/partnerLocation?couple_id={couple_id}&device_id=device-001"
+            f"/partnerLocation?couple_id={couple_id}&device_id=device-001",
+            headers=auth(token1)
         )
         assert partner1_response.status_code == 200
         partner1_data = partner1_response.json()
@@ -547,7 +500,8 @@ class TestPairingIntegration:
 
         # Step 6: Device 2 gets Device 1's location
         partner2_response = client.get(
-            f"/partnerLocation?couple_id={couple_id}&device_id=device-002"
+            f"/partnerLocation?couple_id={couple_id}&device_id=device-002",
+            headers=auth(token2)
         )
         assert partner2_response.status_code == 200
         partner2_data = partner2_response.json()
@@ -564,6 +518,7 @@ class TestPairingIntegration:
             "device_id": "couple1-device1"
         })
         couple_id_1 = create1.json()["couple_id"]
+        token_1 = create1.json()["auth_token"]
 
         # Create couple 2
         create2 = client.post("/pair", json={
@@ -571,6 +526,7 @@ class TestPairingIntegration:
             "device_id": "couple2-device1"
         })
         couple_id_2 = create2.json()["couple_id"]
+        token_2 = create2.json()["auth_token"]
 
         # Add locations for couple 1
         client.post("/updateLocation", json={
@@ -579,7 +535,7 @@ class TestPairingIntegration:
             "latitude": 37.7749,
             "longitude": -122.4194,
             "is_sharing": True
-        })
+        }, headers=auth(token_1))
 
         # Add locations for couple 2
         client.post("/updateLocation", json={
@@ -588,11 +544,12 @@ class TestPairingIntegration:
             "latitude": 40.7128,
             "longitude": -74.0060,
             "is_sharing": True
-        })
+        }, headers=auth(token_2))
 
         # Couple 1 should not see couple 2's location
         partner_response = client.get(
-            f"/partnerLocation?couple_id={couple_id_1}&device_id=couple1-device1"
+            f"/partnerLocation?couple_id={couple_id_1}&device_id=couple1-device1",
+            headers=auth(token_1)
         )
         assert partner_response.status_code == 200
         data = partner_response.json()
@@ -624,6 +581,7 @@ class TestCRUDFunctions:
                 "device_id": "device-count-1"
             })
             couple_id = response.json()["couple_id"]
+            token = response.json()["auth_token"]
 
             # After CREATE, 1 device record exists (creator placeholder)
             count = crud.count_devices_for_couple(db, couple_id)
@@ -636,7 +594,7 @@ class TestCRUDFunctions:
                 "latitude": 37.7749,
                 "longitude": -122.4194,
                 "is_sharing": True
-            })
+            }, headers=auth(token))
 
             count = crud.count_devices_for_couple(db, couple_id)
             assert count == 1, f"Expected 1 device after updateLocation, found {count}"
@@ -684,6 +642,7 @@ class TestCRUDFunctions:
                 "device_id": "device-all-1"
             })
             couple_id = response.json()["couple_id"]
+            token = response.json()["auth_token"]
 
             # Update creator's location
             client.post("/updateLocation", json={
@@ -692,7 +651,7 @@ class TestCRUDFunctions:
                 "latitude": 37.7749,
                 "longitude": -122.4194,
                 "is_sharing": True
-            })
+            }, headers=auth(token))
 
             # Join as second device
             client.post("/pair", json={
@@ -727,6 +686,7 @@ class TestUnpair:
             "device_id": "device-unpair-1"
         })
         couple_id = create_resp.json()["couple_id"]
+        token = create_resp.json()["auth_token"]
 
         client.post("/pair", json={
             "action": "join",
@@ -736,12 +696,26 @@ class TestUnpair:
 
         # Unpair
         delete_resp = client.delete(
-            f"/api/pair/{couple_id}?device_id=device-unpair-1"
+            f"/api/pair/{couple_id}?device_id=device-unpair-1",
+            headers=auth(token)
         )
         assert delete_resp.status_code == 200
         data = delete_resp.json()
         assert data["success"] is True
         assert data["devices_removed"] == 2
+
+    def test_unpair_requires_token(self, client):
+        """Unpairing without the device's token is rejected."""
+        create_resp = client.post("/pair", json={
+            "action": "create",
+            "device_id": "device-unpair-noauth"
+        })
+        couple_id = create_resp.json()["couple_id"]
+
+        response = client.delete(
+            f"/api/pair/{couple_id}?device_id=device-unpair-noauth"
+        )
+        assert response.status_code == 401
 
     def test_unpair_nonexistent_couple(self, client):
         """Test unpairing a couple that doesn't exist."""
@@ -758,9 +732,10 @@ class TestUnpair:
         })
         couple_id = create_resp.json()["couple_id"]
 
+        # Unknown device is indistinguishable from an unknown couple: 404
         response = client.delete(
             f"/api/pair/{couple_id}?device_id=device-intruder"
         )
-        assert response.status_code == 403
+        assert response.status_code == 404
 
 

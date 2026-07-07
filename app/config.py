@@ -41,6 +41,24 @@ class Settings(BaseSettings):
     # or comma-separated: "http://localhost:3000,http://localhost:5173"
     ALLOWED_ORIGINS: str = '["*"]'
 
+    # APNs push notification configuration (all required to enable push).
+    # APNS_PRIVATE_KEY is the full .p8 file content; literal "\n" sequences
+    # are accepted (Render env vars are single-line).
+    APNS_TEAM_ID: str = ""
+    APNS_KEY_ID: str = ""
+    APNS_PRIVATE_KEY: str = ""
+    APNS_TOPIC: str = "com.ltw.lovecompass"
+    APNS_USE_SANDBOX: bool = False
+
+    # Invite link configuration
+    # App Store URL for the iOS app; empty until the app is published.
+    # The /join/{code} landing page falls back to the web app when unset.
+    APP_STORE_URL: str = ""
+    # Apple Team ID + bundle ID enable Universal Links via the
+    # apple-app-site-association file. Leave APPLE_TEAM_ID empty to disable.
+    APPLE_TEAM_ID: str = ""
+    IOS_BUNDLE_ID: str = "com.ltw.lovecompass"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

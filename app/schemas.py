@@ -276,6 +276,20 @@ class PokeRequest(BaseModel):
 
     couple_id: str = Field(..., min_length=1, max_length=100)
     device_id: str = Field(..., min_length=1, max_length=100)
+    message: Optional[str] = Field(
+        default=None,
+        max_length=240,
+        description="Optional personal message shown to the recipient",
+    )
+
+    @field_validator('message')
+    @classmethod
+    def sanitize_message(cls, v: Optional[str]) -> Optional[str]:
+        """Strip whitespace and control characters; drop empty messages."""
+        if v is None:
+            return None
+        cleaned = ''.join(ch for ch in v if ord(ch) >= 32 or ch == '\n').strip()
+        return cleaned or None
 
 
 class PokeResponse(BaseModel):
@@ -285,11 +299,44 @@ class PokeResponse(BaseModel):
     message: str
 
 
+class PokeMessage(BaseModel):
+    """A single received poke."""
+
+    message: Optional[str] = Field(default=None)
+    created_at: datetime
+
+
 class PokesResponse(BaseModel):
     """Response schema for retrieving unseen pokes."""
 
     pokes: int = Field(..., description="Number of unseen pokes")
     latest_at: Optional[datetime] = Field(default=None)
+    messages: list[PokeMessage] = Field(
+        default_factory=list,
+        description="Unseen pokes, oldest first, with their messages",
+    )
+
+
+class PushRegisterRequest(BaseModel):
+    """Request schema for registering an APNs push token."""
+
+    couple_id: str = Field(..., min_length=1, max_length=100)
+    device_id: str = Field(..., min_length=1, max_length=100)
+    push_token: str = Field(..., min_length=16, max_length=200)
+    platform: Literal["ios"] = Field(default="ios")
+
+
+class TokenRequest(BaseModel):
+    """Request schema for claiming an auth token (legacy device upgrade)."""
+
+    couple_id: str = Field(..., min_length=1, max_length=100)
+    device_id: str = Field(..., min_length=1, max_length=100)
+
+
+class TokenResponse(BaseModel):
+    """Response schema for auth token claims."""
+
+    auth_token: str
 
 
 class PairingResponse(BaseModel):
@@ -319,6 +366,11 @@ class PairingResponse(BaseModel):
     existing_devices: Optional[int] = Field(
         default=None,
         description="Number of devices in couple before this one joined (only for 'join' action)"
+    )
+
+    auth_token: Optional[str] = Field(
+        default=None,
+        description="Bearer token for this device. Returned once; store it securely."
     )
 
     model_config = {

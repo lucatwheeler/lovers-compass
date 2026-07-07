@@ -24,51 +24,6 @@ logger = logging.getLogger(__name__)
 # Custom Key Functions for Device-Based Rate Limiting
 # ============================================================================
 
-def get_device_key_from_body(request: Request) -> str:
-    """
-    Extract (couple_id, device_id) from JSON request body for rate limiting.
-
-    Used for POST /updateLocation endpoint.
-    Falls back to IP address if extraction fails.
-
-    Args:
-        request: FastAPI request object
-
-    Returns:
-        str: Rate limit key in format "device:{couple_id}:{device_id}" or IP address
-    """
-    try:
-        # Try to get the body as JSON
-        if hasattr(request, '_json'):
-            body = request._json
-        elif hasattr(request, 'state') and hasattr(request.state, '_json'):
-            body = request.state._json
-        else:
-            # Fallback to IP if we can't access body
-            ip = get_remote_address(request)
-            logger.debug(f"Rate limit: Could not access request body, using IP: {ip}")
-            return ip
-
-        couple_id = body.get('couple_id', '')
-        device_id = body.get('device_id', '')
-
-        if couple_id and device_id:
-            key = f"device:{couple_id}:{device_id}"
-            logger.debug(f"Rate limit key from body: {key}")
-            return key
-        else:
-            # Fallback to IP if fields missing
-            ip = get_remote_address(request)
-            logger.debug(f"Rate limit: Missing couple_id or device_id, using IP: {ip}")
-            return ip
-
-    except Exception as e:
-        # Fallback to IP on any error
-        ip = get_remote_address(request)
-        logger.warning(f"Rate limit: Error extracting device key: {e}, using IP: {ip}")
-        return ip
-
-
 def get_device_key_from_query(request: Request) -> str:
     """
     Extract (couple_id, device_id) from query parameters for rate limiting.
@@ -127,16 +82,17 @@ PAIR_RATE_LIMIT = "5/minute"  # 5 requests per minute per IP
 
 
 # For /updateLocation endpoint
-# Device-based: client sends every 3s (20/min), allow 24/min for buffer
-UPDATE_LOCATION_DEVICE_LIMIT = "24/minute"
-# IP-based safety net: 60 requests per minute per IP
+# IP-based only: reading the JSON body inside a sync rate-limit key function
+# isn't possible, so per-device limiting can't apply here. Sized for two
+# clients on the same wifi sending every 5s (24/min) with headroom.
 UPDATE_LOCATION_IP_LIMIT = "60/minute"
 
 
 # For /partnerLocation endpoint
-# Device-based: 1 request every 5 seconds = 12 per minute
-PARTNER_LOCATION_DEVICE_LIMIT = "12/minute"
-# IP-based safety net: 120 requests per minute per IP
+# Device-based (from query params): iOS polls every 10s, the web app every
+# 3s (20/min); allow 30/min for buffer.
+PARTNER_LOCATION_DEVICE_LIMIT = "30/minute"
+# IP-based safety net (two clients on the same wifi share this)
 PARTNER_LOCATION_IP_LIMIT = "120/minute"
 
 
@@ -163,8 +119,7 @@ def create_device_limiter(key_func: Callable) -> Limiter:
     )
 
 
-# Create device-specific limiters
-device_limiter_body = create_device_limiter(get_device_key_from_body)
+# Create device-specific limiter (query-param based endpoints only)
 device_limiter_query = create_device_limiter(get_device_key_from_query)
 
 

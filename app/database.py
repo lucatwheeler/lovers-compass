@@ -100,3 +100,33 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _run_column_migrations()
+
+
+def _run_column_migrations() -> None:
+    """
+    Add columns that create_all() cannot add to pre-existing tables.
+
+    create_all() only creates missing tables; it never alters existing ones.
+    This keeps the live database in sync when a deploy adds a column.
+    """
+    from sqlalchemy import inspect, text
+
+    migrations = {
+        "device_locations": [("token_hash", "VARCHAR(64)")],
+        "pokes": [("message", "VARCHAR(240)")],
+    }
+
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+
+    with engine.begin() as conn:
+        for table, columns in migrations.items():
+            if table not in existing_tables:
+                continue
+            existing_cols = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl_type in columns:
+                if name not in existing_cols:
+                    conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl_type}")
+                    )

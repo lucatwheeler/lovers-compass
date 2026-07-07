@@ -1,7 +1,7 @@
 # Lover's Compass API - Usage Examples
 
-**Version**: 0.3.0 (Phase 3)
-**Base URL**: `http://localhost:8000` (development)
+**Version**: 1.0.0
+**Base URL**: `http://localhost:8000` (development) / `https://lovers-compass.onrender.com` (production)
 
 ---
 
@@ -9,6 +9,58 @@
 
 This document provides practical examples for using the Lover's Compass API endpoints.
 All examples use `curl` for demonstration, but any HTTP client will work.
+
+---
+
+## What's New in 1.0.0
+
+### Device token auth (required)
+
+`POST /pair` (both `create` and `join`) now returns an `auth_token` for the
+device. It is returned **exactly once** — store it securely (iOS Keychain /
+localStorage). Every subsequent request must send it:
+
+```
+Authorization: Bearer <auth_token>
+```
+
+Applies to: `POST /updateLocation`, `GET /partnerLocation`, `POST /poke`,
+`GET /pokes`, `DELETE /api/pair/{couple_id}`. Requests without a valid token
+get `401`; unknown couple/device combinations get `404`.
+
+Devices paired before 1.0.0 have no token on file and are still accepted
+(legacy grace). They can claim a token once via:
+
+```bash
+curl -X POST $BASE/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"couple_id": "AB12CD34", "device_id": "<device uuid>"}'
+# -> {"auth_token": "..."}   (409 if the device already has one)
+```
+
+### Poke messages
+
+`POST /poke` accepts an optional `message` (max 240 chars):
+
+```json
+{"couple_id": "AB12CD34", "device_id": "...", "message": "miss you 🥺"}
+```
+
+`GET /pokes` now returns the messages (oldest first) alongside the count:
+
+```json
+{"pokes": 2, "latest_at": "...", "messages": [{"message": "miss you 🥺", "created_at": "..."}, {"message": null, "created_at": "..."}]}
+```
+
+### Invite links
+
+`GET /join/{code}` serves an HTML landing page for sharing invites over
+https. It deep-links into the iOS app (`loverscompass://join/CODE`), falls
+back to the App Store (`APP_STORE_URL` env var) or the web app (`/?code=CODE`).
+The page renders for any well-formed code without revealing whether it exists.
+
+`GET /.well-known/apple-app-site-association` enables iOS Universal Links
+once the `APPLE_TEAM_ID` env var is set (404 until then).
 
 ---
 

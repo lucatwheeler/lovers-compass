@@ -8,6 +8,7 @@ Privacy Note: No latitude/longitude values are logged in this module.
 Only couple_id, device_id, and success/failure states are logged.
 """
 
+import hashlib
 import logging
 import secrets
 from datetime import datetime, timezone
@@ -16,7 +17,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.models import DeviceLocation, Poke
+from app.models import DeviceLocation, Poke, PushToken
 from app.schemas import LocationUpdateRequest
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,25 @@ def _generate_pairing_code() -> str:
     # Allowed characters: A-Z (excluding O and I) and digits 2-9 (excluding 0 and 1)
     allowed_chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 32 characters total
     return ''.join(secrets.choice(allowed_chars) for _ in range(8))
+
+
+# ============================================================================
+# Device Auth Tokens
+# ============================================================================
+
+def generate_auth_token() -> str:
+    """Generate a device bearer token (returned to the client exactly once)."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 hex digest of a token, for at-rest storage."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_token(token: str, token_hash: str) -> bool:
+    """Constant-time comparison of a presented token against a stored hash."""
+    return secrets.compare_digest(hash_token(token), token_hash)
 
 
 def upsert_device_location(
@@ -283,12 +303,18 @@ def generate_unique_couple_id(db: Session) -> str:
     raise RuntimeError("Failed to generate unique pairing code after maximum attempts")
 
 
-def create_poke(db: Session, couple_id: str, from_device_id: str) -> Poke:
+def create_poke(
+    db: Session,
+    couple_id: str,
+    from_device_id: str,
+    message: Optional[str] = None,
+) -> Poke:
     """Create a new poke from one device to their partner."""
     try:
         poke = Poke(
             couple_id=couple_id,
             from_device_id=from_device_id,
+            message=message,
             created_at=datetime.now(timezone.utc),
         )
         db.add(poke)
@@ -304,9 +330,9 @@ def create_poke(db: Session, couple_id: str, from_device_id: str) -> Poke:
 
 def get_and_clear_unseen_pokes(
     db: Session, couple_id: str, for_device_id: str
-) -> tuple[int, Optional[datetime]]:
+) -> list[Poke]:
     """
-    Get count of unseen pokes for a device and mark them as seen.
+    Get unseen pokes for a device (oldest first) and mark them as seen.
 
     Returns pokes sent BY the partner (from_device_id != for_device_id).
     """
@@ -318,19 +344,16 @@ def get_and_clear_unseen_pokes(
                 Poke.from_device_id != for_device_id,
                 Poke.seen == False,
             )
+            .order_by(Poke.created_at.asc())
             .all()
         )
 
-        count = len(pokes)
-        latest_at = None
-
         if pokes:
-            latest_at = max(p.created_at for p in pokes)
             for p in pokes:
                 p.seen = True
             db.commit()
 
-        return count, latest_at
+        return pokes
     except SQLAlchemyError as e:
         logger.error(f"Database error getting pokes: {e}")
         db.rollback()
@@ -355,6 +378,7 @@ def delete_couple(db: Session, couple_id: str) -> int:
     """
     try:
         poke_count = db.query(Poke).filter(Poke.couple_id == couple_id).delete()
+        db.query(PushToken).filter(PushToken.couple_id == couple_id).delete()
         device_count = db.query(DeviceLocation).filter(
             DeviceLocation.couple_id == couple_id
         ).delete()
@@ -366,6 +390,129 @@ def delete_couple(db: Session, couple_id: str) -> int:
         return device_count
     except SQLAlchemyError as e:
         logger.error(f"Database error deleting couple {couple_id}: {e}")
+        db.rollback()
+        raise
+
+
+# ============================================================================
+# Push Tokens
+# ============================================================================
+
+def upsert_push_token(
+    db: Session, couple_id: str, device_id: str, token: str, platform: str = "ios"
+) -> PushToken:
+    """Register or refresh a device's APNs token (one row per couple-device)."""
+    try:
+        # The same physical token may resurface on a different device/couple
+        # (reinstall, re-pair) — remove stale rows holding it first.
+        db.query(PushToken).filter(
+            PushToken.token == token,
+            ~((PushToken.couple_id == couple_id) & (PushToken.device_id == device_id)),
+        ).delete(synchronize_session=False)
+
+        row = db.query(PushToken).filter(
+            PushToken.couple_id == couple_id,
+            PushToken.device_id == device_id,
+        ).first()
+        if row:
+            row.token = token
+            row.platform = platform
+            row.updated_at = datetime.now(timezone.utc)
+        else:
+            row = PushToken(
+                couple_id=couple_id,
+                device_id=device_id,
+                token=token,
+                platform=platform,
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(row)
+        db.commit()
+        db.refresh(row)
+        logger.info(f"Push token registered: couple_id={couple_id}, device_id={device_id}")
+        return row
+    except SQLAlchemyError as e:
+        logger.error(f"Database error upserting push token: {e}")
+        db.rollback()
+        raise
+
+
+def get_partner_push_tokens(db: Session, couple_id: str, sender_device_id: str) -> list[str]:
+    """APNs tokens of the OTHER device(s) in the couple."""
+    try:
+        rows = (
+            db.query(PushToken)
+            .filter(
+                PushToken.couple_id == couple_id,
+                PushToken.device_id != sender_device_id,
+            )
+            .all()
+        )
+        return [r.token for r in rows]
+    except SQLAlchemyError as e:
+        logger.error(f"Database error fetching push tokens: {e}")
+        raise
+
+
+def delete_push_tokens(db: Session, tokens: list[str]) -> None:
+    """Remove APNs tokens reported dead by Apple."""
+    if not tokens:
+        return
+    try:
+        db.query(PushToken).filter(PushToken.token.in_(tokens)).delete(
+            synchronize_session=False
+        )
+        db.commit()
+    except SQLAlchemyError as e:
+        logger.error(f"Database error deleting push tokens: {e}")
+        db.rollback()
+
+
+def prune_stale_couples(db: Session, max_age_days: int = 30) -> int:
+    """
+    Delete couples where no device has updated in max_age_days.
+
+    Keeps the table from accumulating abandoned pairing codes (created but
+    never joined, or couples that stopped using the app). A couple is kept
+    if ANY of its devices updated recently.
+
+    Returns:
+        int: Number of device records deleted
+    """
+    from datetime import timedelta
+
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        # Couples with at least one recent device
+        active_couples = {
+            row[0]
+            for row in db.query(DeviceLocation.couple_id)
+            .filter(DeviceLocation.updated_at >= cutoff)
+            .distinct()
+            .all()
+        }
+        stale = (
+            db.query(DeviceLocation)
+            .filter(DeviceLocation.updated_at < cutoff)
+            .all()
+        )
+        stale_couples = {d.couple_id for d in stale} - active_couples
+        if not stale_couples:
+            return 0
+
+        deleted = 0
+        for couple_id in stale_couples:
+            db.query(Poke).filter(Poke.couple_id == couple_id).delete()
+            deleted += (
+                db.query(DeviceLocation)
+                .filter(DeviceLocation.couple_id == couple_id)
+                .delete()
+            )
+        db.commit()
+        logger.info(f"Pruned {len(stale_couples)} stale couples ({deleted} device records)")
+        return deleted
+    except SQLAlchemyError as e:
+        logger.error(f"Database error pruning stale couples: {e}")
         db.rollback()
         raise
 

@@ -91,6 +91,15 @@ class DeviceLocation(Base):
         comment="Whether device is currently sharing location"
     )
 
+    # SHA-256 hex digest of this device's auth token.
+    # Nullable for devices paired before token auth existed; those devices
+    # can claim a token once via POST /auth/token.
+    token_hash = Column(
+        String(64),
+        nullable=True,
+        comment="SHA-256 hash of the device's bearer token"
+    )
+
     # Composite index for efficient couple-device lookups
     __table_args__ = (
         Index('idx_couple_device', 'couple_id', 'device_id', unique=True),
@@ -106,6 +115,33 @@ class DeviceLocation(Base):
         )
 
 
+class PushToken(Base):
+    """
+    APNs device tokens for push notifications.
+
+    One row per (couple, device). Tokens are upserted on registration and
+    removed when APNs reports them dead (410 Unregistered) or on unpair.
+    """
+
+    __tablename__ = "push_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    couple_id = Column(String(8), nullable=False, index=True)
+    device_id = Column(String(100), nullable=False)
+    token = Column(String(200), nullable=False)
+    platform = Column(String(16), nullable=False, default="ios")
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index('idx_push_couple_device', 'couple_id', 'device_id', unique=True),
+    )
+
+
 class Poke(Base):
     """
     Stores poke notifications between paired devices.
@@ -119,6 +155,8 @@ class Poke(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     couple_id = Column(String(8), nullable=False, index=True)
     from_device_id = Column(String(100), nullable=False)
+    # Optional personal message from the sender (shown to the recipient).
+    message = Column(String(240), nullable=True)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
