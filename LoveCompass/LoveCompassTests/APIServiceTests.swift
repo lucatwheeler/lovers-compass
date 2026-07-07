@@ -6,9 +6,21 @@ final class APIServiceTests: XCTestCase {
     // MARK: - APIError
 
     func testAPIErrorBadStatusDescription() {
+        // Non-JSON body: falls back to a generic message with the status code
         let error = APIService.APIError.badStatus(404, "Not found")
         XCTAssertTrue(error.errorDescription!.contains("404"))
-        XCTAssertTrue(error.errorDescription!.contains("Not found"))
+        XCTAssertEqual(error.statusCode, 404)
+    }
+
+    func testAPIErrorBadStatusShowsServerDetail() {
+        // JSON body with a "detail" field: shows the server's message
+        let error = APIService.APIError.badStatus(404, #"{"detail": "Pairing code not found"}"#)
+        XCTAssertEqual(error.errorDescription, "Pairing code not found")
+    }
+
+    func testAPIErrorStatusCode() {
+        XCTAssertEqual(APIService.APIError.badStatus(401, "").statusCode, 401)
+        XCTAssertNil(APIService.APIError.unknown.statusCode)
     }
 
     func testAPIErrorDecodingFailedDescription() {

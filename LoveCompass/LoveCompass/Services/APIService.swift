@@ -1,8 +1,9 @@
 import Foundation
 
 /// Centralized API client for all backend communication.
-/// The base URL is read from the app bundle's configuration or falls back
-/// to the production Railway deployment.
+/// The base URL is read from the app bundle's configuration (Info.plist
+/// API_BASE_URL) or falls back to the production Render deployment.
+/// All post-pairing requests carry the device's bearer token.
 final class APIService {
     static let shared = APIService()
 
@@ -19,10 +20,22 @@ final class APIService {
         case invalidURL
         case unknown
 
+        /// HTTP status code for badStatus errors (nil otherwise).
+        var statusCode: Int? {
+            if case .badStatus(let code, _) = self { return code }
+            return nil
+        }
+
         var errorDescription: String? {
             switch self {
             case .badStatus(let code, let body):
-                return "Server error (status \(code)): \(body)"
+                // Show the server's "detail" message when present instead of raw JSON
+                if let data = body.data(using: .utf8),
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let detail = obj["detail"] as? String {
+                    return detail
+                }
+                return "Server error (status \(code))"
             case .decodingFailed(let body):
                 return "Failed to decode response: \(body)"
             case .invalidURL:
@@ -42,7 +55,7 @@ final class APIService {
            !configured.isEmpty {
             urlString = configured
         } else {
-            urlString = "https://web-production-558a2.up.railway.app"
+            urlString = "https://lovers-compass.onrender.com"
         }
         guard let url = URL(string: urlString) else {
             fatalError("Invalid API base URL: \(urlString)")
@@ -60,6 +73,14 @@ final class APIService {
 
     func pair(_ request: PairingRequest) async throws -> PairingResponse {
         return try await post(path: "pair", body: request)
+    }
+
+    // MARK: - Auth
+
+    /// One-time token claim for devices paired before token auth existed.
+    func claimToken(coupleId: String, deviceId: String) async throws -> TokenResponse {
+        let body = TokenRequest(couple_id: coupleId, device_id: deviceId)
+        return try await post(path: "auth/token", body: body)
     }
 
     // MARK: - Location
@@ -80,8 +101,8 @@ final class APIService {
 
     // MARK: - Poke
 
-    func sendPoke(coupleId: String, deviceId: String) async throws -> PokeResponse {
-        let body = PokeRequest(couple_id: coupleId, device_id: deviceId)
+    func sendPoke(coupleId: String, deviceId: String, message: String? = nil) async throws -> PokeResponse {
+        let body = PokeRequest(couple_id: coupleId, device_id: deviceId, message: message)
         return try await post(path: "poke", body: body)
     }
 
@@ -104,6 +125,29 @@ final class APIService {
                 URLQueryItem(name: "device_id", value: deviceId)
             ]
         )
+    }
+
+    // MARK: - Push Registration
+
+    func registerPushToken(coupleId: String, deviceId: String, pushToken: String) async throws -> PushRegisterResponse {
+        let body = PushRegisterRequest(
+            couple_id: coupleId, device_id: deviceId,
+            push_token: pushToken, platform: "ios"
+        )
+        return try await post(path: "push/register", body: body)
+    }
+
+    // MARK: - Invite Links
+
+    /// HTTPS invite link for a couple code. Opens the app if installed,
+    /// otherwise a landing page with App Store / web fallbacks.
+    func inviteURL(for coupleId: String) -> URL {
+        baseURL.appendingPathComponent("join").appendingPathComponent(coupleId)
+    }
+
+    /// Shareable invite message for a couple code.
+    func inviteMessage(for coupleId: String) -> String {
+        "Be my lover on Lover's Compass! 💘 Tap to pair with me: \(inviteURL(for: coupleId).absoluteString) (or enter code \(coupleId) in the app)"
     }
 
     // MARK: - Health
@@ -161,6 +205,10 @@ final class APIService {
     }
 
     private func execute<R: Decodable>(_ urlRequest: URLRequest) async throws -> R {
+        var urlRequest = urlRequest
+        if let token = KeychainService.shared.getAuthToken() {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         let (data, response) = try await session.data(for: urlRequest)
 
         guard let http = response as? HTTPURLResponse else {

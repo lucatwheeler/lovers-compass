@@ -17,6 +17,7 @@ struct PairingView: View {
     @State private var codeCopied: Bool = false
     @State private var showError: Bool = false
     @State private var errorMessage: String = ""
+    @State private var partnerWatchTask: Task<Void, Never>? = nil
 
     // MARK: - Theme Colors
 
@@ -36,7 +37,7 @@ struct PairingView: View {
 
                     cardSection
 
-                    deviceIdFooter
+                    // deviceIdFooter  // hidden — not needed for users
 
                     Spacer().frame(height: 40)
                 }
@@ -54,6 +55,10 @@ struct PairingView: View {
                 coupleCodeInput = code
                 Task { await handleJoinCouple() }
             }
+        }
+        .onDisappear {
+            partnerWatchTask?.cancel()
+            partnerWatchTask = nil
         }
         .alert("Something Went Wrong", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -116,8 +121,22 @@ struct PairingView: View {
                 joinSection
             }
 
-            if createdCoupleCode != nil {
+            if let code = createdCoupleCode {
                 waitingAnimation
+
+                Button {
+                    onPaired(code)
+                } label: {
+                    Text("Continue to Compass")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(deepRose)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(deepRose.opacity(0.6), lineWidth: 1.5)
+                        )
+                }
             }
 
             if !statusMessage.isEmpty {
@@ -251,7 +270,7 @@ struct PairingView: View {
                 .textSelection(.enabled)
 
             ShareLink(
-                item: "I want you to be my lover on Lover's Compass! 💘 Tap to join: loverscompass://join/\(code)"
+                item: api.inviteMessage(for: code)
             ) {
                 HStack(spacing: 6) {
                     Image(systemName: "paperplane.fill")
@@ -344,9 +363,17 @@ extension PairingView {
         do {
             let response = try await api.pair(request)
             await MainActor.run {
+                // Persist credentials now so the pairing survives an app
+                // restart, but stay on this screen so the user can share
+                // the invite. We advance when the partner joins (or the
+                // user taps Continue).
+                if let token = response.auth_token {
+                    KeychainService.shared.saveAuthToken(token)
+                }
+                KeychainService.shared.saveCoupleId(response.couple_id)
                 createdCoupleCode = response.couple_id
                 statusMessage = ""
-                onPaired(response.couple_id)
+                startWatchingForPartner(coupleId: response.couple_id)
             }
         } catch {
             await MainActor.run {
@@ -357,6 +384,23 @@ extension PairingView {
         }
 
         await MainActor.run { isWorking = false }
+    }
+
+    /// Poll until the partner joins, then advance to the compass.
+    private func startWatchingForPartner(coupleId: String) {
+        partnerWatchTask?.cancel()
+        partnerWatchTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+                if let response = try? await api.getPartnerLocation(
+                    coupleId: coupleId, deviceId: deviceId
+                ), response.partner_found {
+                    await MainActor.run { onPaired(coupleId) }
+                    return
+                }
+            }
+        }
     }
 
     private func handleJoinCouple() async {
@@ -388,6 +432,9 @@ extension PairingView {
         do {
             let response = try await api.pair(request)
             await MainActor.run {
+                if let token = response.auth_token {
+                    KeychainService.shared.saveAuthToken(token)
+                }
                 statusMessage = ""
                 onPaired(response.couple_id)
             }

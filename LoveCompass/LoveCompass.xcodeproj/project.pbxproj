@@ -17,9 +17,9 @@
 		A1000008 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000008 /* APIService.swift */; };
 		A1000009 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000009 /* LocationManager.swift */; };
 		A100000A /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000A /* KeychainService.swift */; };
-		A100000D /* PhotoStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000E /* PhotoStorage.swift */; };
 		A100000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000B /* Assets.xcassets */; };
 		A100000C /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000C /* Preview Assets.xcassets */; };
+		A100000D /* PhotoStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000E /* PhotoStorage.swift */; };
 		A2000001 /* CompassCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* CompassCalculatorTests.swift */; };
 		A2000002 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* ModelTests.swift */; };
 		A2000003 /* APIServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* APIServiceTests.swift */; };
@@ -46,10 +46,10 @@
 		B1000008 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		B1000009 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		B100000A /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
-		B100000E /* PhotoStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStorage.swift; sourceTree = "<group>"; };
 		B100000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B100000C /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B100000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B100000E /* PhotoStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStorage.swift; sourceTree = "<group>"; };
 		B2000001 /* CompassCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompassCalculatorTests.swift; sourceTree = "<group>"; };
 		B2000002 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
 		B2000003 /* APIServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceTests.swift; sourceTree = "<group>"; };
@@ -421,11 +421,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"LoveCompass/Preview Content\"";
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = LoveCompass/LoveCompass.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LoveCompass/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lover's Compass";
@@ -442,6 +444,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ltw.lovecompass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -455,11 +458,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"LoveCompass/Preview Content\"";
 				DEVELOPMENT_TEAM = 8MBGHS687J;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = LoveCompass/LoveCompass.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LoveCompass/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lover's Compass";
@@ -476,6 +481,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ltw.lovecompass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;

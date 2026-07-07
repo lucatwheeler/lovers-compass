@@ -33,6 +33,14 @@ struct MapView: View {
     @State private var showPhotoPicker: Bool = false
     @State private var selectedPhoto: PhotosPickerItem? = nil
 
+    // Poke composer state
+    @State private var showPokeComposer: Bool = false
+    @State private var selectedPokePreset: String? = nil
+    @State private var customPokeText: String = ""
+
+    // Consecutive 401/404 sync failures — the couple was deleted remotely
+    @State private var staleCredentialFailures: Int = 0
+
     private let syncInterval: TimeInterval = 10
 
     // Theme
@@ -136,6 +144,11 @@ struct MapView: View {
             SettingsView(coupleId: coupleId, deviceId: deviceId, onUnpair: { onUnpair?() })
         }
         .sheet(isPresented: $showMap) { mapSheet }
+        .sheet(isPresented: $showPokeComposer) {
+            pokeComposerSheet
+                .presentationDetents([.height(400)])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Textured Background
@@ -601,8 +614,9 @@ struct MapView: View {
 
     private var fireArrowButton: some View {
         Button {
-            fireArrowSequence()
-            Task { await pokeManager?.sendPoke() }
+            selectedPokePreset = nil
+            customPokeText = ""
+            showPokeComposer = true
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "heart.fill").font(.system(size: 16))
@@ -621,7 +635,7 @@ struct MapView: View {
         .opacity((pokeManager?.isSendingPoke == true || bowPulledBack) ? 0.6 : 1.0)
     }
 
-    // MARK: - Fire Arrow Sequence
+    // MARK: - Poke Composer
 
     private let pokeMessages = [
         "ily 💕", "thinking of you ✨", "miss you 🥺",
@@ -630,7 +644,87 @@ struct MapView: View {
         "you make me smile 😊", "sending love your way 💌"
     ]
 
-    private func fireArrowSequence() {
+    private var pokeComposerSheet: some View {
+        VStack(spacing: 18) {
+            Text("Send some love 💌")
+                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .foregroundColor(deepRose)
+                .padding(.top, 22)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                ForEach(pokeMessages, id: \.self) { preset in
+                    let isSelected = selectedPokePreset == preset
+                    Button {
+                        selectedPokePreset = isSelected ? nil : preset
+                        customPokeText = ""
+                    } label: {
+                        Text(preset)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .lineLimit(1)
+                            .foregroundColor(isSelected ? .white : deepRose)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                Capsule().fill(
+                                    isSelected
+                                        ? AnyShapeStyle(LinearGradient(colors: [rosePink, deepRose], startPoint: .leading, endPoint: .trailing))
+                                        : AnyShapeStyle(blush)
+                                )
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+
+            TextField("...or write your own", text: $customPokeText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 16, design: .rounded))
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(warmWhite)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(rosePink.opacity(0.3), lineWidth: 1.5)
+                        )
+                )
+                .padding(.horizontal, 20)
+                .onChange(of: customPokeText) { _, newValue in
+                    if !newValue.isEmpty { selectedPokePreset = nil }
+                    if newValue.count > 240 { customPokeText = String(newValue.prefix(240)) }
+                }
+
+            Button {
+                let custom = customPokeText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let message = custom.isEmpty ? selectedPokePreset : custom
+                showPokeComposer = false
+                fireArrowSequence(message: message)
+                Task { await pokeManager?.sendPoke(message: message) }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill").font(.system(size: 15))
+                    Text("Send 💘").font(.system(size: 17, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    Capsule()
+                        .fill(LinearGradient(colors: [rosePink, deepRose], startPoint: .leading, endPoint: .trailing))
+                        .shadow(color: deepRose.opacity(0.3), radius: 8, y: 3)
+                )
+            }
+            .padding(.horizontal, 20)
+
+            Spacer(minLength: 8)
+        }
+        .background(Color(red: 1.0, green: 0.97, blue: 0.98).ignoresSafeArea())
+    }
+
+    // MARK: - Fire Arrow Sequence
+
+    private func fireArrowSequence(message: String?) {
         // 1. Pull back
         withAnimation(.easeOut(duration: 0.3)) {
             bowPulledBack = true
@@ -646,8 +740,8 @@ struct MapView: View {
                 arrowFlyOpacity = 0
             }
 
-            // Show heart burst + message
-            pokeSentMessage = pokeMessages.randomElement() ?? "poke! 💕"
+            // Show heart burst + the actual message being sent
+            pokeSentMessage = message ?? "poke! 💕"
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                 showPokeSentBurst = true
             }
@@ -754,12 +848,31 @@ struct MapView: View {
                     .font(.system(size: 56))
                     .foregroundStyle(LinearGradient(colors: [rosePink, deepRose], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .shadow(color: deepRose.opacity(0.4), radius: 12)
-                Text("Your lover is\nthinking of you!")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(deepRose)
-                    .multilineTextAlignment(.center)
+
+                if let message = pokeManager?.lastReceivedMessage {
+                    // The sender's actual words
+                    Text(message)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(deepRose)
+                        .multilineTextAlignment(.center)
+                    Text("— your lover 💌")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(rosePink.opacity(0.7))
+                } else {
+                    Text("Your lover is\nthinking of you!")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(deepRose)
+                        .multilineTextAlignment(.center)
+                }
+
+                if let extra = pokeManager?.additionalUnseenCount, extra > 0 {
+                    Text("+\(extra) more poke\(extra == 1 ? "" : "s")")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(36)
+            .frame(maxWidth: 320)
             .background(
                 RoundedRectangle(cornerRadius: 28).fill(.white.opacity(0.95))
                     .shadow(color: rosePink.opacity(0.25), radius: 20, y: 8)
@@ -867,14 +980,20 @@ extension MapView {
             couple_id: coupleId, device_id: deviceId, is_sharing: isSharing,
             latitude: location.latitude, longitude: location.longitude
         )
-        do { _ = try await api.updateLocation(request) }
-        catch { print("Send location error: \(error)") }
+        do {
+            _ = try await api.updateLocation(request)
+            await MainActor.run { staleCredentialFailures = 0 }
+        } catch {
+            print("Send location error: \(error)")
+            await registerPossibleStaleCredentials(error)
+        }
     }
 
     private func fetchPartnerLocation() async {
         do {
             let response = try await api.getPartnerLocation(coupleId: coupleId, deviceId: deviceId)
             await MainActor.run {
+                staleCredentialFailures = 0
                 if !response.partner_found { partnerConnected = false; partnerLocation = nil; staleness = nil; return }
                 if response.is_sharing != true { partnerConnected = false; partnerLocation = nil; staleness = response.staleness_seconds; return }
                 if let lat = response.latitude, let lon = response.longitude {
@@ -885,7 +1004,27 @@ extension MapView {
                     }
                 }
             }
-        } catch { print("Fetch partner error: \(error)") }
+        } catch {
+            print("Fetch partner error: \(error)")
+            await registerPossibleStaleCredentials(error)
+        }
+    }
+
+    /// If the server repeatedly says our couple/device no longer exists
+    /// (partner unpaired, or credentials invalidated), reset to the pairing
+    /// screen instead of hammering a dead couple forever.
+    private func registerPossibleStaleCredentials(_ error: Error) async {
+        guard let apiError = error as? APIService.APIError,
+              let status = apiError.statusCode,
+              status == 404 || status == 401 else { return }
+
+        await MainActor.run {
+            staleCredentialFailures += 1
+            if staleCredentialFailures >= 3 {
+                staleCredentialFailures = 0
+                onUnpair?()
+            }
+        }
     }
 }
 
@@ -928,6 +1067,10 @@ final class PokeManager: ObservableObject {
     @Published var showPokeBanner: Bool = false
     @Published var showPokeSentToast: Bool = false
     @Published var isSendingPoke: Bool = false
+    /// The most recent received poke's message (nil = no personal message).
+    @Published var lastReceivedMessage: String? = nil
+    /// How many additional pokes arrived beyond the one shown.
+    @Published var additionalUnseenCount: Int = 0
 
     private let api = APIService.shared
     private var pollTimer: Timer?
@@ -947,11 +1090,11 @@ final class PokeManager: ObservableObject {
 
     func stopPolling() { pollTimer?.invalidate(); pollTimer = nil }
 
-    func sendPoke() async {
+    func sendPoke(message: String? = nil) async {
         guard !isSendingPoke else { return }
         isSendingPoke = true
         do {
-            _ = try await api.sendPoke(coupleId: coupleId, deviceId: deviceId)
+            _ = try await api.sendPoke(coupleId: coupleId, deviceId: deviceId, message: message)
             showPokeSentToast = true
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             showPokeSentToast = false
@@ -963,8 +1106,12 @@ final class PokeManager: ObservableObject {
         do {
             let response = try await api.getPokes(coupleId: coupleId, deviceId: deviceId)
             if response.pokes > 0 {
+                // Show the newest message with actual text, if any
+                let received = response.messages ?? []
+                lastReceivedMessage = received.compactMap(\.message).last
+                additionalUnseenCount = max(0, response.pokes - 1)
                 showPokeBanner = true
-                fireLocalNotification()
+                fireLocalNotification(message: lastReceivedMessage)
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 showPokeBanner = false
             }
@@ -982,10 +1129,15 @@ final class PokeManager: ObservableObject {
         "Poke! Your lover says hi! 💝"
     ]
 
-    private func fireLocalNotification() {
+    private func fireLocalNotification(message: String?) {
+        // Foreground: the in-app overlay already shows the poke, and APNs
+        // handles the app-closed case — a local notification here would be
+        // a duplicate in Notification Center.
+        guard UIApplication.shared.applicationState != .active else { return }
         let content = UNMutableNotificationContent()
         content.title = "Lover's Compass"
-        content.body = pokeNotifications.randomElement() ?? "Your lover poked you! 💕"
+        // Show the sender's actual words when they wrote some
+        content.body = message ?? pokeNotifications.randomElement() ?? "Your lover poked you! 💕"
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
         let request = UNNotificationRequest(identifier: "poke-\(UUID().uuidString)", content: content, trigger: trigger)

@@ -117,12 +117,20 @@ final class ModelTests: XCTestCase {
     // MARK: - PokeRequest
 
     func testPokeRequestEncoding() throws {
-        let request = PokeRequest(couple_id: "ABCD1234", device_id: "dev-123")
+        let request = PokeRequest(couple_id: "ABCD1234", device_id: "dev-123", message: nil)
         let data = try encoder.encode(request)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
         XCTAssertEqual(json["couple_id"] as? String, "ABCD1234")
         XCTAssertEqual(json["device_id"] as? String, "dev-123")
+    }
+
+    func testPokeRequestEncodingWithMessage() throws {
+        let request = PokeRequest(couple_id: "ABCD1234", device_id: "dev-123", message: "miss you 🥺")
+        let data = try encoder.encode(request)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(json["message"] as? String, "miss you 🥺")
     }
 
     // MARK: - PokeResponse
@@ -157,6 +165,21 @@ final class ModelTests: XCTestCase {
         let response = try decoder.decode(PokesResponse.self, from: json)
         XCTAssertEqual(response.pokes, 0)
         XCTAssertNil(response.latest_at)
+    }
+
+    func testPokesResponseWithMessagesDecoding() throws {
+        let json = """
+        {"pokes": 2, "latest_at": "2026-03-14T12:00:00Z", "messages": [
+            {"message": "hey cutie 💘", "created_at": "2026-03-14T11:59:00Z"},
+            {"message": null, "created_at": "2026-03-14T12:00:00Z"}
+        ]}
+        """.data(using: .utf8)!
+
+        let response = try decoder.decode(PokesResponse.self, from: json)
+        XCTAssertEqual(response.pokes, 2)
+        XCTAssertEqual(response.messages?.count, 2)
+        XCTAssertEqual(response.messages?.first?.message, "hey cutie 💘")
+        XCTAssertNil(response.messages?.last?.message)
     }
 
     // MARK: - UnpairResponse

@@ -92,7 +92,7 @@ struct SettingsView: View {
                     }
 
                     ShareLink(
-                        item: "I want you to be my lover on Lover's Compass! 💘 Tap to join: loverscompass://join/\(coupleId)"
+                        item: APIService.shared.inviteMessage(for: coupleId)
                     ) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold))
@@ -203,7 +203,7 @@ struct SettingsView: View {
             HStack {
                 Label("Version", systemImage: "info.circle")
                 Spacer()
-                Text("1.0.0")
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
                     .foregroundColor(.secondary)
             }
 

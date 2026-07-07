@@ -9,6 +9,7 @@ final class KeychainService {
     private let service = "com.ltw.lovecompass"
     private let deviceIdKey = "deviceId"
     private let coupleIdKey = "coupleId"
+    private let authTokenKey = "authToken"
 
     private init() {}
 
@@ -38,10 +39,25 @@ final class KeychainService {
         delete(key: coupleIdKey)
     }
 
+    // MARK: - Auth Token
+
+    func getAuthToken() -> String? {
+        return read(key: authTokenKey)
+    }
+
+    func saveAuthToken(_ token: String) {
+        save(key: authTokenKey, value: token)
+    }
+
+    func deleteAuthToken() {
+        delete(key: authTokenKey)
+    }
+
     /// Clear all stored credentials (used during full reset).
     func clearAll() {
         delete(key: deviceIdKey)
         delete(key: coupleIdKey)
+        delete(key: authTokenKey)
     }
 
     // MARK: - Keychain Operations
