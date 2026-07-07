@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lovers-compass-v1';
+const CACHE_NAME = 'lovers-compass-v2';
 const SHELL_FILES = [
   '/',
   '/index.html',
@@ -31,7 +31,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Network-only for API calls (no caching of API responses)
-  const apiPaths = ['/pair', '/updateLocation', '/partnerLocation', '/poke', '/pokes', '/health', '/api', '/docs', '/redoc', '/openapi.json'];
+  const apiPaths = ['/pair', '/updateLocation', '/partnerLocation', '/poke', '/pokes', '/auth', '/join', '/health', '/api', '/docs', '/redoc', '/openapi.json', '/.well-known'];
   if (apiPaths.some((p) => url.pathname.startsWith(p))) {
     return;
   }

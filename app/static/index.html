@@ -186,6 +186,9 @@
           </button>
         </div>
         <p class="waiting-status">Waiting for your partner to connect...</p>
+        <button class="btn btn-secondary btn-large" onclick="shareInvite()" aria-label="Share an invite link with your partner">
+          Share invite link 💌
+        </button>
         <button class="btn btn-text" onclick="cancelWaiting()" aria-label="Cancel and go back">Cancel</button>
       </div>
     </div>
@@ -302,12 +305,32 @@
 
     <!-- Poke button -->
     <div class="poke-section">
-      <button id="btn-poke" class="btn-poke" onclick="sendPoke()" aria-label="Send a poke to your partner">
+      <button id="btn-poke" class="btn-poke" onclick="openPokeComposer()" aria-label="Send a poke to your partner">
         <svg viewBox="0 0 60 60" width="36" height="36" aria-hidden="true">
           <path d="M30,10 C24,0 12,0 12,12 C12,28 30,42 30,42 C30,42 48,28 48,12 C48,0 36,0 30,10Z" fill="white"/>
         </svg>
         <span>Poke</span>
       </button>
+    </div>
+
+    <!-- Poke composer (choose a preset or write your own message) -->
+    <div id="poke-composer" class="poke-composer hidden" role="dialog" aria-label="Send a poke">
+      <div class="poke-composer-card">
+        <p class="poke-composer-title">Send some love 💌</p>
+        <div id="poke-presets" class="poke-presets"></div>
+        <input
+          type="text"
+          id="poke-message-input"
+          class="poke-message-input"
+          maxlength="240"
+          placeholder="...or write your own"
+          autocomplete="off"
+        >
+        <div class="poke-composer-actions">
+          <button class="btn btn-text" onclick="closePokeComposer()">Cancel</button>
+          <button id="btn-send-poke" class="btn btn-primary" onclick="sendPokeFromComposer()">Send 💘</button>
+        </div>
+      </div>
     </div>
 
     <!-- Sharing toggle -->

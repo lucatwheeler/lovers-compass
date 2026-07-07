@@ -3,8 +3,10 @@
 /* ============================================ */
 
 // ---- Constants ----
-const UPDATE_INTERVAL = 1000;   // Send location every 1s
-const POLL_INTERVAL = 1000;     // Poll partner location every 1s
+// Intervals are sized to stay under the backend rate limits
+// (updateLocation: 60/min/IP shared by both devices; partnerLocation: 30/min/device)
+const UPDATE_INTERVAL = 5000;   // Send location every 5s
+const POLL_INTERVAL = 3000;     // Poll partner location every 3s
 const POKE_POLL_INTERVAL = 5000;// Poll pokes every 5s
 const WAIT_POLL_INTERVAL = 3000;// Poll while waiting for partner
 const ANCHOR_DURATION_MS = 60000;  // Use anchor for 60 seconds
@@ -14,6 +16,7 @@ const ANCHOR_DISTANCE_FT = 200;    // Switch to live GPS beyond 200ft
 const state = {
   deviceId: null,
   coupleId: null,
+  authToken: null,
   role: null,
   isSharing: true,
   myLat: null,
@@ -45,6 +48,7 @@ const state = {
   anchorLng: null,
   anchorTime: null,  // timestamp when pair was created (for 60s timer)
   permissionsGranted: false,
+  pendingInviteCode: null,
 };
 
 // ---- DOM References ----
@@ -56,7 +60,20 @@ function init() {
   localStorage.setItem('device_id', state.deviceId);
 
   state.coupleId = localStorage.getItem('couple_id');
+  state.authToken = localStorage.getItem('auth_token');
   state.role = localStorage.getItem('role');
+
+  // Devices paired before token auth existed can claim a token once.
+  if (state.coupleId && !state.authToken) {
+    claimLegacyToken();
+  }
+
+  // Invite links land on /?code=XXXXXXXX — remember it so the pair screen
+  // can open the join section with the code prefilled.
+  var inviteCode = new URLSearchParams(window.location.search).get('code');
+  if (inviteCode && !state.coupleId) {
+    state.pendingInviteCode = inviteCode.toUpperCase().slice(0, 8);
+  }
 
   // Restore anchor from localStorage
   var savedAnchor = localStorage.getItem('lc_anchor');
@@ -147,6 +164,13 @@ function showScreen(name) {
     $('btn-create').disabled = false;
     $('btn-create').textContent = 'Create a Pair';
     $('join-code').value = '';
+
+    // Arrived via an invite link: jump straight to the join form
+    if (state.pendingInviteCode) {
+      $('join-code').value = state.pendingInviteCode;
+      state.pendingInviteCode = null;
+      showJoinSection();
+    }
   }
 
   if (name === 'settings') {
@@ -245,6 +269,10 @@ async function createCompass() {
     state.role = 'creator';
     localStorage.setItem('couple_id', state.coupleId);
     localStorage.setItem('role', state.role);
+    if (result.auth_token) {
+      state.authToken = result.auth_token;
+      localStorage.setItem('auth_token', result.auth_token);
+    }
 
     // Show waiting state
     $('pair-buttons').classList.add('hidden');
@@ -287,10 +315,19 @@ function cancelWaiting() {
     state.waitingTimer = null;
   }
   stopLocationTracking();
+
+  // Delete the abandoned couple server-side (best effort)
+  if (state.coupleId && state.isOnline) {
+    apiCall('DELETE', '/api/pair/' + state.coupleId + '?device_id=' + state.deviceId)
+      .catch(function () {});
+  }
+
   state.coupleId = null;
   state.role = null;
+  state.authToken = null;
   localStorage.removeItem('couple_id');
   localStorage.removeItem('role');
+  localStorage.removeItem('auth_token');
 
   $('waiting-section').classList.add('hidden');
   $('pair-buttons').classList.remove('hidden');
@@ -328,6 +365,10 @@ async function joinCompass() {
     state.role = 'partner';
     localStorage.setItem('couple_id', state.coupleId);
     localStorage.setItem('role', state.role);
+    if (result.auth_token) {
+      state.authToken = result.auth_token;
+      localStorage.setItem('auth_token', result.auth_token);
+    }
 
     showScreen('compass');
     showCompassLoading(true);
@@ -868,7 +909,66 @@ function handleOrientation(event) {
 }
 
 // ---- Poke System ----
-async function sendPoke() {
+
+var POKE_PRESETS = [
+  'thinking of you \u2728',
+  'miss you \ud83e\udd7a',
+  'ily \ud83d\udc95',
+  'wish you were here \ud83e\udef6',
+  'hey cutie \ud83d\udc98',
+  'almost home \ud83c\udfc3',
+  'call me when you can \ud83d\udcde',
+];
+
+var _selectedPreset = null;
+
+function openPokeComposer() {
+  var composer = $('poke-composer');
+  var presets = $('poke-presets');
+  if (!composer || !presets) return;
+
+  // Build preset chips once
+  if (!presets.childElementCount) {
+    POKE_PRESETS.forEach(function (text) {
+      var chip = document.createElement('button');
+      chip.className = 'poke-preset-chip';
+      chip.type = 'button';
+      chip.textContent = text;
+      chip.onclick = function () {
+        _selectedPreset = (_selectedPreset === text) ? null : text;
+        $('poke-message-input').value = '';
+        updatePresetSelection();
+      };
+      presets.appendChild(chip);
+    });
+  }
+
+  _selectedPreset = null;
+  $('poke-message-input').value = '';
+  updatePresetSelection();
+  composer.classList.remove('hidden');
+}
+
+function updatePresetSelection() {
+  var chips = document.querySelectorAll('.poke-preset-chip');
+  chips.forEach(function (chip) {
+    chip.classList.toggle('selected', chip.textContent === _selectedPreset);
+  });
+}
+
+function closePokeComposer() {
+  var composer = $('poke-composer');
+  if (composer) composer.classList.add('hidden');
+}
+
+function sendPokeFromComposer() {
+  var custom = $('poke-message-input').value.trim();
+  var message = custom || _selectedPreset || null;
+  closePokeComposer();
+  sendPoke(message);
+}
+
+async function sendPoke(message) {
   var btn = $('btn-poke');
   if (btn.classList.contains('poked')) return;
   btn.classList.add('poked');
@@ -876,27 +976,27 @@ async function sendPoke() {
   // Swap label to "Sent!"
   var label = btn.querySelector('span:last-child');
   var origText = label.textContent;
-  label.textContent = 'Sent! 💋';
+  label.textContent = 'Sent! \ud83d\udc8b';
+
+  var payload = {
+    couple_id: state.coupleId,
+    device_id: state.deviceId,
+  };
+  if (message) payload.message = message;
 
   if (window.demoMode) {
-    showToast('💋 Kiss sent!', true);
+    showToast('\ud83d\udc8b Poke sent!', true);
   } else if (!state.isOnline) {
     // Queue poke for when we're back online
-    state.pokeQueue.push({
-      couple_id: state.coupleId,
-      device_id: state.deviceId,
-    });
-    showToast('You\u2019re offline \u2014 kiss will send when reconnected');
+    state.pokeQueue.push(payload);
+    showToast('You\u2019re offline \u2014 your poke will send when reconnected');
   } else {
     if (!state.coupleId) return;
     try {
-      await apiCall('POST', '/poke', {
-        couple_id: state.coupleId,
-        device_id: state.deviceId,
-      });
-      showToast('💋 Kiss sent!', true);
+      await apiCall('POST', '/poke', payload);
+      showToast('\ud83d\udc8b Poke sent!', true);
     } catch (e) {
-      showToast('Could not send kiss. Try again.');
+      showToast('Could not send your poke. Try again.');
     }
   }
 
@@ -923,7 +1023,7 @@ function startPokePolling() {
         '/pokes?couple_id=' + state.coupleId + '&device_id=' + state.deviceId
       );
       if (result.pokes > 0) {
-        showPokeBanner();
+        showPokeBanner(result.messages || []);
       }
     } catch (e) {
       // Silently retry
@@ -931,15 +1031,25 @@ function startPokePolling() {
   }, POKE_POLL_INTERVAL);
 }
 
-function showPokeBanner() {
+function showPokeBanner(received) {
   var banner = $('poke-banner');
-  var messages = [
-    'Your partner sent you a kiss! 💋',
-    'Someone is thinking of you! 💕',
-    'You just got a love note! 💌',
-    'Your partner misses you! 🥰',
-  ];
-  banner.textContent = messages[Math.floor(Math.random() * messages.length)];
+
+  // Prefer the sender's actual message(s); fall back to a generic line.
+  var withText = (received || []).filter(function (p) { return p && p.message; });
+  if (withText.length === 1) {
+    banner.textContent = '💌 ' + withText[0].message;
+  } else if (withText.length > 1) {
+    banner.textContent = '💌 ' + withText[withText.length - 1].message +
+      ' (+' + (withText.length - 1) + ' more)';
+  } else {
+    var fallbacks = [
+      'Your partner sent you a kiss! 💋',
+      'Someone is thinking of you! 💕',
+      'You just got a love note! 💌',
+      'Your partner misses you! 🥰',
+    ];
+    banner.textContent = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
   banner.classList.remove('hidden');
   banner.classList.add('visible');
 
@@ -1029,8 +1139,10 @@ async function unpair() {
   state.anchorLng = null;
   state.anchorTime = null;
 
+  state.authToken = null;
   localStorage.removeItem('couple_id');
   localStorage.removeItem('role');
+  localStorage.removeItem('auth_token');
   localStorage.removeItem('lc_anchor');
 
   // Generate fresh device_id to prevent stale backend references
@@ -1042,6 +1154,19 @@ async function unpair() {
 
   showScreen('pair');
   showToast('Unpaired successfully');
+}
+
+function shareInvite() {
+  if (!state.coupleId) return;
+  var url = window.location.origin + '/join/' + state.coupleId;
+  var text = 'Be my lover on Lover’s Compass 💘 Tap to pair with me: ' + url;
+  if (navigator.share) {
+    navigator.share({ title: 'Lover’s Compass', text: text, url: url }).catch(function () {});
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function () {
+      showToast('Invite link copied!');
+    });
+  }
 }
 
 function copyCode() {
@@ -1066,14 +1191,35 @@ function copyCode() {
 
 // ---- API Helper ----
 async function apiCall(method, path, body) {
-  var options = {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-  };
+  var headers = { 'Content-Type': 'application/json' };
+  if (state.authToken) {
+    headers['Authorization'] = 'Bearer ' + state.authToken;
+  }
+  var options = { method: method, headers: headers };
   if (body) options.body = JSON.stringify(body);
 
   var response = await fetch(path, options);
   return response.json();
+}
+
+// ---- Legacy Token Claim ----
+// Devices paired before token auth existed have no token; claim one so the
+// backend can start enforcing auth for this couple.
+async function claimLegacyToken() {
+  try {
+    var result = await apiCall('POST', '/auth/token', {
+      couple_id: state.coupleId,
+      device_id: state.deviceId,
+    });
+    if (result.auth_token) {
+      state.authToken = result.auth_token;
+      localStorage.setItem('auth_token', result.auth_token);
+    }
+    // 409 = token already claimed elsewhere; validateAndReconnect will
+    // surface the auth failure and prompt a re-pair.
+  } catch (e) {
+    // Offline or server error — try again next launch.
+  }
 }
 
 // ---- Toast ----
@@ -1378,8 +1524,10 @@ async function validateAndReconnect() {
     console.log('Stored couple_id is stale, clearing...');
     state.coupleId = null;
     state.role = null;
+    state.authToken = null;
     localStorage.removeItem('couple_id');
     localStorage.removeItem('role');
+    localStorage.removeItem('auth_token');
     showScreen('pair');
     injectDemoButton();
     showToast('Your previous session expired. Please pair again.');
