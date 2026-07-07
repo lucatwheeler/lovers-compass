@@ -303,9 +303,8 @@ async def api_info():
     """API information endpoint."""
     return {
         "name": "Lover's Compass API",
-        "version": "0.5.0",
+        "version": app.version,
         "status": "running",
-        "docs": "/docs",
         "health": "/health",
     }
 
